@@ -11,7 +11,6 @@ using System.Buffers;
 
 public static class BChartWriter
 {
-
     public const byte EVENT_TEMPO = 0x01;
     public const byte EVENT_TIME_SIG = 0x02;
     public const byte EVENT_TEXT = 0x03;
@@ -111,7 +110,7 @@ public static class BChartWriter
 
     public static void WriteNote(FileStream fs, Note note)
     {
-        uint eventLength = 1; // Note event is atleast 1 byte
+        uint eventLength = 7; // Note event is atleast 7 bytes
         byte modifierLength = 0;
 
         if (note.forced)
