@@ -12,9 +12,9 @@ bchart format:
             [Section 0x4]
                 [0x03] [length len] [utf8 characters]
             [Phrase 0x5]
-                [0x4] [length 2] [byte phraseType] [byte phraseType] [uint tickLength]
+                [0x4] [length 2] [byte phraseType] [byte phraseType] [uint32 tickLength]
             [Note 0x06]
-                [0x5] [2+noteModifiersLength] [uint16 noteNumber] [uint tickLength] [byte noteModifiersLength] [byte noteModifier1] [byte noteModifier2] [byte noteModifierX]
+                [0x5] [7+noteModifiersLength] [uint16 noteNumber] [uint32 tickLength] [byte noteModifiersLength] [byte noteModifier1] [byte noteModifier2] [byte noteModifierX]
     header:
         uint16 - 0xBCAF
         uint16 - Version number
