@@ -1,0 +1,40 @@
+bchart format:
+
+        event format:
+        [uint32 tickPos] [uint32 eventLength] [uint8 eventType] [eventData]
+        event types:
+            [Tempo 0x01]
+                [0x01] [length 4] [uint32 tempo]
+            [TimeSig 0x2]
+                [0x02] [length 2] [byte numerator] [byte denominator]
+            [TextEvent 0x3]
+                [0x03] [length len] [utf8 characters]
+            [Section 0x4]
+                [0x03] [length len] [utf8 characters]
+            [Phrase 0x5]
+                [0x4] [2] [byte phraseType] [byte phraseType] [uint tickLength]
+            [Note 0x06]
+                [0x5] [1+noteModifiersLength] [uint16 noteNumber] [uint tickLength] [byte noteModifiersLength] [byte noteModifier1] [noteModifier2] [note noteModifierX]
+    header:
+        uint16 - 0xBCAF
+        uint16 - Version number
+        uint16 - Resolution
+        uint16 - instrumentCount
+
+    tempoMap:
+        [TimeSig 0x2]
+        [Tempo 0x01]
+
+    GlobalEvents:
+        [Phrase 0x4]
+        [TextEvent 0x3]
+
+    Instrument:
+        uint32 instrumentID
+        uint32 diffCount
+        InstrumentDiffEvents
+
+    InstrumentDiffEvents:
+        difficultyID
+
+        [deltaTick] [event data]
