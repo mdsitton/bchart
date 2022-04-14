@@ -1,41 +1,17 @@
-﻿using System.Diagnostics;
+﻿// Copyright (c) 2016-2020 Alexander Ong
+// See LICENSE in project root for license information.
 
-#if UNITY_DEBUGGING_ENABLED
-using UnityEngine;
-#endif
+using System;
+using System.Collections;
+using System.Collections.Generic;
 
-namespace MoonscraperEngine
+public static class Logger
 {
-    public static class Logger
+    public static string LogException(System.Exception e, string errorContextMessage)
     {
-#if !UNITY_DEBUGGING_ENABLED
-        [Conditional("UNITY_DEBUGGING_ENABLED")]      // Strips out method completely upon release
-#endif
-        public static void LogException(System.Exception e, string errorContextMessage)
-        {
-            string fullMessage = string.Format("Exception Logged-\nContext: {0}\nMessage: {1} \nStack Trace: {2}", errorContextMessage, e.Message, e.StackTrace.ToString());
+        string fullMessage = string.Format("Exception Logged-\nContext: {0}\nMessage: {1} \nStack Trace: {2}", errorContextMessage, e.Message, e.StackTrace.ToString());
+        Console.WriteLine(fullMessage);
 
-#if UNITY_DEBUGGING_ENABLED
-            Debug.LogError(fullMessage);
-#endif
-        }
-
-#if !UNITY_DEBUGGING_ENABLED
-        [Conditional("UNITY_DEBUGGING_ENABLED")]      // Strips out method completely upon release
-#endif
-        public static void Log(string message)
-        {
-#if UNITY_DEBUGGING_ENABLED
-            Debug.Log(message);
-#endif
-        }
-
-        [Conditional("UNITY_DEBUGGING_ENABLED")]      // Strips out method completely upon release
-        public static void Assert(bool condition, string message = "")
-        {
-#if UNITY_DEBUGGING_ENABLED
-            Debug.Assert(condition, message);
-#endif
-        }
+        return fullMessage;
     }
 }

@@ -1,23 +1,34 @@
-﻿// Copyright (c) 2016-2020 Alexander Ong
+// Copyright (c) 2016-2020 Alexander Ong
 // See LICENSE in project root for license information.
 
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using MoonscraperEngine;
 using BinaryEx;
 
 namespace MoonscraperChartEditor.Song.IO
 {
     public static class MidWriter
     {
-        const byte TRACK_NAME_EVENT = 0x03;
-        const byte TEXT_EVENT = 0x01;
+        // http://www.somascape.org/midi/tech/mfile.html#:~:text=a%20MIDI%20file.-,Meta%20events,useful%20within%20a%20MIDI%20file).&text=type%20specifies%20the%20type%20of%20Meta%20event%20(0%20%2D%20127).
+        enum MetaTextEventType
+        {
+            // All the events here follow the [0xFF type length] text structure
+            Text = 1,
+            Copyright = 2,
+            TrackName = 3,
+            InstrumentName = 4,
+            Lyric = 5,
+            Marker = 6,
+            CuePoint = 7,
+            ProgramName = 8,
+            DeviceName = 9,
+        }
 
         const byte ON_EVENT = 0x91;         // Note on channel 1
         const byte OFF_EVENT = 0x81;
-        const byte VELOCITY = 0x64;         // 100
+        const byte VELOCITY = MidIOHelper.VELOCITY;
 
         const byte SYSEX_START = 0xF0;
         const byte SYSEX_END = 0xF7;
@@ -25,6 +36,15 @@ namespace MoonscraperChartEditor.Song.IO
         const byte SYSEX_OFF = 0x00;
 
         static readonly byte[] END_OF_TRACK = new byte[] { 0, 0xFF, 0x2F, 0x00 };
+
+        struct VocalProcessingParams
+        {
+            public Song song;
+            public IList<Event> eventList;
+            public int eventListIndex;
+
+            public List<SortableBytes> out_sortableBytes;
+        }
 
         static readonly Dictionary<Song.Instrument, string> c_instrumentToTrackNameDict = new Dictionary<Song.Instrument, string>()
     {
@@ -90,11 +110,67 @@ namespace MoonscraperChartEditor.Song.IO
         { Note.NoteType.Strum, 6 },
     };
 
+        delegate void ProcessVocalEventBytesFn(in VocalProcessingParams processParams);
+        static readonly Dictionary<string, ProcessVocalEventBytesFn> vocalPrefixProcessList = new Dictionary<string, ProcessVocalEventBytesFn>()
+        {
+            { MidIOHelper.LYRIC_EVENT_PREFIX, (in VocalProcessingParams processParams) => {
+                const string prefix = MidIOHelper.LYRIC_EVENT_PREFIX;
+
+                Event songEvent = processParams.eventList[processParams.eventListIndex];
+
+                string currentEventTitle = songEvent.title;
+                string metaTextEventStr = currentEventTitle.Substring(prefix.Length, currentEventTitle.Length - prefix.Length);
+
+                SortableBytes bytes = new SortableBytes(songEvent.tick, MetaTextEvent(MetaTextEventType.Lyric, metaTextEventStr));
+                InsertionSort(processParams.out_sortableBytes, bytes);
+            }},
+
+            { MidIOHelper.PhraseStartText, (in VocalProcessingParams processParams) => {
+
+                Event phraseStartEvent = processParams.eventList[processParams.eventListIndex];
+                uint phraseEndEventTick = phraseStartEvent.tick;    // Find next phase end or the next phase start, whichever is first. 1 tick away as a backup. 
+
+                for (int i = processParams.eventListIndex + 1; i < processParams.eventList.Count; ++i)
+                {
+                    Event nextEvent = processParams.eventList[i];
+                    if (nextEvent.title.StartsWith(MidIOHelper.PhraseEndText))
+                    {
+                        phraseEndEventTick = nextEvent.tick;
+                        break;
+                    }
+                    else if(nextEvent.title.StartsWith(MidIOHelper.PhraseStartText))
+                    {
+                        phraseEndEventTick = nextEvent.tick - 1;
+                        break;
+                    }
+                }
+
+                if (phraseEndEventTick == phraseStartEvent.tick)
+                {
+                    phraseEndEventTick = processParams.eventList[processParams.eventList.Count - 1].tick + 1;
+                }
+
+                // Make a note that has the length of the two phase events
+                Note phraseNote = new Note(phraseStartEvent.tick, 0, phraseEndEventTick - phraseStartEvent.tick);
+                SortableBytes onEvent = null;
+                SortableBytes offEvent = null;
+                GetNoteNumberBytes(MidIOHelper.PhraseMarker, phraseNote, VELOCITY, out onEvent, out offEvent);
+
+                InsertionSort(processParams.out_sortableBytes, onEvent);
+                InsertionSort(processParams.out_sortableBytes, offEvent);
+            }},
+
+            { MidIOHelper.PhraseEndText, (in VocalProcessingParams processParams) => {
+                // Do nothing, phrase start handles this. Still need to mark it here for it to be excluded from regular events track
+            }},
+        };
+
         public static void WriteToFile(string path, Song song, ExportOptions exportOptions)
         {
             short track_count = 1;
 
             float resolutionScaleRatio = song.ResolutionScaleRatio(exportOptions.targetResolution);
+            List<SortableBytes> vocalsEvents = new List<SortableBytes>();
 
             byte[] track_sync = MakeTrack(GetSyncBytes(song, exportOptions, resolutionScaleRatio), song.name);
             byte[] track_events;
@@ -104,8 +180,7 @@ namespace MoonscraperChartEditor.Song.IO
                 List<byte> eventBytes = new List<byte>(GetEventBytes(
                         song,
                         exportOptions,
-                        null,
-                        new List<string>() { MidIOHelper.LYRIC_EVENT_PREFIX },
+                        vocalsEvents,
                         true,
                         resolutionScaleRatio,
                         out deltaTickSum));
@@ -139,19 +214,18 @@ namespace MoonscraperChartEditor.Song.IO
                 byte[] bytes = GetInstrumentBytes(song, entry.Key, exportOptions, resolutionScaleRatio);
                 if (bytes.Length > 0)
                 {
-                    Logger.Log(string.Format("Saving {0} track", entry.Key.ToString()));
+                    // Debug.LogFormat("Saving {0} track", entry.Key.ToString());
                     allTracks.Add(bytes);
                     allTrackNames.Add(entry.Value);
                     track_count++;
                 }
             }
 
-            byte[] lyric_events = GetEventBytes(song, exportOptions, new List<string>() { MidIOHelper.LYRIC_EVENT_PREFIX }, null, false, resolutionScaleRatio);
-            if (lyric_events.Length > 0)
+            if (vocalsEvents.Count > 0)
             {
                 // Make a vocals track
-                Logger.Log("Lyrics events found. Saving Vocals track.");
-                byte[] bytes = lyric_events;
+                // Debug.Log("Vocals events found. Saving Vocals track.");
+                byte[] bytes = SortableBytesToTimedEventBytes(vocalsEvents.ToArray(), song, exportOptions, resolutionScaleRatio);
                 allTracks.Add(bytes);
                 allTrackNames.Add(MidIOHelper.VOCALS_TRACK);
                 track_count++;
@@ -227,27 +301,44 @@ namespace MoonscraperChartEditor.Song.IO
         static byte[] GetEventBytes
             (Song song
             , ExportOptions exportOptions
-            , List<string> allowedEventPrefixMaybe
-            , List<string> ignoreEventPrefixMaybe
+            , List<SortableBytes> vocalsEvents
             , bool containInSquareBrackets
             , float resolutionScaleRatio
             )
         {
             uint deltaTickSum;
-            return GetEventBytes(song, exportOptions, allowedEventPrefixMaybe, ignoreEventPrefixMaybe, containInSquareBrackets, resolutionScaleRatio, out deltaTickSum);
+            return GetEventBytes(song, exportOptions, vocalsEvents, containInSquareBrackets, resolutionScaleRatio, out deltaTickSum);
         }
 
         static byte[] GetEventBytes
         (Song song
         , ExportOptions exportOptions
-        , List<string> allowedEventPrefixMaybe
-        , List<string> ignoreEventPrefixMaybe
+        , List<SortableBytes> vocalsEvents
         , bool containInSquareBrackets
         , float resolutionScaleRatio
         , out uint deltaTickSum
         )
         {
-            const string section_id = "section ";     // "section " is rb2 and former, "prc_" is rb3
+            VocalProcessingParams vocalProcesingParams = new VocalProcessingParams() { song = song, out_sortableBytes = vocalsEvents };
+
+            var rbFormat = exportOptions.midiOptions.rbFormat;
+            string section_id = MidIOHelper.Rb2SectionPrefix;
+
+            switch (rbFormat)
+            {
+                case ExportOptions.MidiOptions.RBFormat.RB3:
+                    {
+                        section_id = MidIOHelper.Rb3SectionPrefix;
+                        break;
+                    }
+                case ExportOptions.MidiOptions.RBFormat.RB2:
+                default:
+                    {
+                        section_id = MidIOHelper.Rb2SectionPrefix;
+                        break;
+                    }
+            }
+
             List<byte> eventBytes = new List<byte>();
 
             //eventBytes.AddRange(TimedEvent(0, MetaTextEvent(TEXT_EVENT, "[music_start]")));
@@ -256,45 +347,34 @@ namespace MoonscraperChartEditor.Song.IO
             uint previousEventTick = 0;
             int eventCount = 0;
 
+            vocalProcesingParams.eventList = song.eventsAndSections;
             for (int i = 0; i < song.eventsAndSections.Count; ++i)
             {
+                vocalProcesingParams.eventListIndex = i;
                 Event currentEvent = song.eventsAndSections[i];
                 string currentEventTitle = currentEvent.title;
-                bool allowedEvent = false;
-                string metaTextEventStr = currentEvent.title;
+                bool allowedEvent = true;
 
-                if (allowedEventPrefixMaybe != null && allowedEventPrefixMaybe.Count > 0)
+                // Check if should be processed for the vocals track instead
+                if (currentEvent as Section == null)
                 {
-                    foreach (string prefix in allowedEventPrefixMaybe)
+                    foreach (var keyVal in vocalPrefixProcessList)
                     {
-                        if (string.Compare(currentEventTitle, 0, prefix, 0, prefix.Length) == 0)
+                        string prefix = keyVal.Key;
+                        if (currentEventTitle.StartsWith(prefix))
                         {
-                            metaTextEventStr = currentEventTitle.Substring(prefix.Length, currentEventTitle.Length - prefix.Length);
-                            allowedEvent = true;
-                            break;
-                        }
-                    }
-                }
-                else if (ignoreEventPrefixMaybe != null && ignoreEventPrefixMaybe.Count > 0)
-                {
-                    allowedEvent = true;
-
-                    foreach (string prefix in ignoreEventPrefixMaybe)
-                    {
-                        if (string.Compare(currentEventTitle, 0, prefix, 0, prefix.Length) == 0)
-                        {
+                            keyVal.Value(vocalProcesingParams);
                             allowedEvent = false;
                             break;
                         }
                     }
                 }
-                else
-                {
-                    allowedEvent = true;
-                }
 
                 if (!allowedEvent)
                     continue;
+
+                string metaTextEventStr = currentEvent.title;
+                MetaTextEventType metaTextEventType = MetaTextEventType.Text;
 
                 if (currentEvent as Section != null)
                 {
@@ -318,7 +398,7 @@ namespace MoonscraperChartEditor.Song.IO
 
                 deltaTickSum += deltaTime;
 
-                eventBytes.AddRange(TimedEvent(deltaTime, MetaTextEvent(TEXT_EVENT, metaTextEventStr)));
+                eventBytes.AddRange(TimedEvent(deltaTime, MetaTextEvent(metaTextEventType, metaTextEventStr)));
 
                 previousEventTick = currentEvent.tick;
                 ++eventCount;
@@ -344,7 +424,7 @@ namespace MoonscraperChartEditor.Song.IO
             //SortableBytes[] sortedEvents = new SortableBytes[easyBytes.Length + mediumBytes.Length + hardBytes.Length + expertBytes.Length];//byteEvents.ToArray();
             //SortableBytes.Sort(sortedEvents);
 
-            // Strip out duplicate events. This may occur with cymbal flags across multiple difficulties
+            // Strip out duplicate events. This may occur with cymbal flags across multiple difficulties, duplicate events across difficulties etc. 
             for (int i = sortedEvents.Count - 1; i >= 0; --i)
             {
                 int next = i + 1;
@@ -398,6 +478,7 @@ namespace MoonscraperChartEditor.Song.IO
         {
             Chart chart = song.GetChart(instrument, difficulty);
             Chart.GameMode gameMode = chart.gameMode;
+            bool writeGlobalTrackEvents = difficulty == exportOptions.midiOptions.difficultyToUseGlobalTrackEvents;
 
             if (exportOptions.copyDownEmptyDifficulty)
             {
@@ -438,12 +519,29 @@ namespace MoonscraperChartEditor.Song.IO
                 {
                     int noteNumber = GetMidiNoteNumber(note, gameMode, difficulty);
 
-                    GetNoteNumberBytes(noteNumber, note, out onEvent, out offEvent);
+                    byte velocity = VELOCITY;
+
+                    if (gameMode == Chart.GameMode.Drums)
+                    {
+                        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
+                        {
+                            velocity = MidIOHelper.VELOCITY_ACCENT;
+                        }
+                        else if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
+                        {
+                            velocity = MidIOHelper.VELOCITY_GHOST;
+                        }
+                    }
+
+                    GetNoteNumberBytes(noteNumber, note, velocity, out onEvent, out offEvent);
 
                     if (exportOptions.forced)
                     {
+                        Note.Flags bannedFlags = Note.GetBannedFlagsForGameMode(gameMode);
+                        Note.Flags noteFlags = note.flags & ~bannedFlags;   // Last ditched error correction
+
                         // Forced notes               
-                        if ((note.flags & Note.Flags.Forced) != 0 && note.type != Note.NoteType.Tap && (note.previous == null || (note.previous.tick != note.tick)))     // Don't overlap on chords
+                        if ((noteFlags & Note.Flags.Forced) != 0 && note.type != Note.NoteType.Tap && (note.previous == null || (note.previous.tick != note.tick)))     // Don't overlap on chords
                         {
                             // Add a note
                             int difficultyNumber;
@@ -464,42 +562,45 @@ namespace MoonscraperChartEditor.Song.IO
                             InsertionSort(eventList, forceOffEvent);
                         }
 
-                        if (instrument == Song.Instrument.Drums && ((note.flags & Note.Flags.ProDrums_Cymbal) == 0))     // We want to write our flags if the cymbal is toggled OFF, as these notes are cymbals by default
+                        if (writeGlobalTrackEvents)
                         {
-                            int tomToggleNoteNumber;
-                            if (MidIOHelper.PAD_TO_CYMBAL_LOOKUP.TryGetValue(note.drumPad, out tomToggleNoteNumber))
+                            if (instrument == Song.Instrument.Drums && ((noteFlags & Note.Flags.ProDrums_Cymbal) == 0))     // We want to write our flags if the cymbal is toggled OFF, as these notes are cymbals by default
                             {
-                                SortableBytes tomToggleOnEvent = new SortableBytes(note.tick, new byte[] { ON_EVENT, (byte)tomToggleNoteNumber, VELOCITY });
-                                SortableBytes tomToggleOffEvent = new SortableBytes(note.tick + 1, new byte[] { OFF_EVENT, (byte)tomToggleNoteNumber, VELOCITY });
+                                int tomToggleNoteNumber;
+                                if (MidIOHelper.PAD_TO_CYMBAL_LOOKUP.TryGetValue(note.drumPad, out tomToggleNoteNumber))
+                                {
+                                    SortableBytes tomToggleOnEvent = new SortableBytes(note.tick, new byte[] { ON_EVENT, (byte)tomToggleNoteNumber, VELOCITY });
+                                    SortableBytes tomToggleOffEvent = new SortableBytes(note.tick + 1, new byte[] { OFF_EVENT, (byte)tomToggleNoteNumber, VELOCITY });
 
-                                InsertionSort(eventList, tomToggleOnEvent);
-                                InsertionSort(eventList, tomToggleOffEvent);
+                                    InsertionSort(eventList, tomToggleOnEvent);
+                                    InsertionSort(eventList, tomToggleOffEvent);
+                                }
                             }
-                        }
 
-                        int openNote = gameMode == Chart.GameMode.GHLGuitar ? (int)Note.GHLiveGuitarFret.Open : (int)Note.GuitarFret.Open;
-                        // Add tap sysex events
-                        if (difficulty == Song.Difficulty.Expert && note.rawNote != openNote && (note.flags & Note.Flags.Tap) != 0 && (note.previous == null || (note.previous.flags & Note.Flags.Tap) == 0))  // This note is a tap while the previous one isn't as we're creating a range
-                        {
-                            // Find the next non-tap note
-                            Note nextNonTap = note;
-                            while (nextNonTap.next != null && nextNonTap.rawNote != openNote && (nextNonTap.next.flags & Note.Flags.Tap) != 0)
-                                nextNonTap = nextNonTap.next;
+                            int openNote = gameMode == Chart.GameMode.GHLGuitar ? (int)Note.GHLiveGuitarFret.Open : (int)Note.GuitarFret.Open;
+                            // Add tap sysex events
+                            bool isStartOfTapRange = note.rawNote != openNote && (noteFlags & Note.Flags.Tap) != 0 && (note.previous == null || (note.previous.flags & Note.Flags.Tap) == 0);
+                            if (isStartOfTapRange)  // This note is a tap while the previous one isn't as we're creating a range
+                            {
+                                // Find the next non-tap note
+                                Note nextNonTap = note;
+                                while (nextNonTap.next != null && nextNonTap.rawNote != openNote && (nextNonTap.next.flags & Note.Flags.Tap) != 0)
+                                    nextNonTap = nextNonTap.next;
 
-                            // Tap event = 08-50-53-00-00-FF-04-01, end with 01 for On, 00 for Off
-                            byte[] tapOnEventBytes = new byte[] { SYSEX_START, 0x08, 0x50, 0x53, 0x00, 0x00, 0xFF, 0x04, SYSEX_ON, SYSEX_END };
-                            byte[] tapOffEventBytes = new byte[] { SYSEX_START, 0x08, 0x50, 0x53, 0x00, 0x00, 0xFF, 0x04, SYSEX_OFF, SYSEX_END };
+                                // Tap event = 08-50-53-00-00-FF-04-01, end with 01 for On, 00 for Off
+                                byte[] tapOnEventBytes = new byte[] { SYSEX_START, 0x08, 0x50, 0x53, 0x00, 0x00, 0xFF, 0x04, SYSEX_ON, SYSEX_END };
+                                byte[] tapOffEventBytes = new byte[] { SYSEX_START, 0x08, 0x50, 0x53, 0x00, 0x00, 0xFF, 0x04, SYSEX_OFF, SYSEX_END };
 
-                            SortableBytes tapOnEvent = new SortableBytes(note.tick, tapOnEventBytes);
-                            SortableBytes tapOffEvent = new SortableBytes(nextNonTap.tick + 1, tapOffEventBytes);
+                                SortableBytes tapOnEvent = new SortableBytes(note.tick, tapOnEventBytes);
+                                SortableBytes tapOffEvent = new SortableBytes(nextNonTap.tick + 1, tapOffEventBytes);
 
-                            InsertionSort(eventList, tapOnEvent);
-                            InsertionSort(eventList, tapOffEvent);
+                                InsertionSort(eventList, tapOnEvent);
+                                InsertionSort(eventList, tapOffEvent);
+                            }
                         }
                     }
 
-                    if (gameMode != Chart.GameMode.Drums && gameMode != Chart.GameMode.GHLGuitar &&
-                        difficulty == Song.Difficulty.Expert && note.guitarFret == Note.GuitarFret.Open && (note.previous == null || (note.previous.guitarFret != Note.GuitarFret.Open)))
+                    if (gameMode != Chart.GameMode.Drums && gameMode != Chart.GameMode.GHLGuitar && note.guitarFret == Note.GuitarFret.Open && (note.previous == null || (note.previous.guitarFret != Note.GuitarFret.Open)))
                     {
                         // Find the next non-open note
                         Note nextNonOpen = note;
@@ -537,25 +638,28 @@ namespace MoonscraperChartEditor.Song.IO
                     }
                 }
 
-                Starpower sp = chartObject as Starpower;
-                if (sp != null && difficulty == Song.Difficulty.Expert)     // Starpower cannot be split up between charts in a midi file
-                    GetStarpowerBytes(sp, out onEvent, out offEvent);
-
-                ChartEvent chartEvent = chartObject as ChartEvent;
-                if (chartEvent != null && difficulty == Song.Difficulty.Expert)     // Text events cannot be split up in the file
+                if (writeGlobalTrackEvents)
                 {
-                    if (soloOnEvent != null && chartEvent.eventName == MidIOHelper.SoloEndEventText)
+                    Starpower sp = chartObject as Starpower;
+                    if (sp != null)     // Starpower cannot be split up between charts in a midi file
+                        GetStarpowerBytes(sp, out onEvent, out offEvent);
+
+                    ChartEvent chartEvent = chartObject as ChartEvent;
+                    if (chartEvent != null)     // Text events cannot be split up in the file
                     {
-                        GetSoloBytes(soloOnEvent, chartEvent.tick, out onEvent, out offEvent);
-                        soloOnEvent = null;
-                    }
-                    else if (chartEvent.eventName == MidIOHelper.SoloEventText)
-                    {
-                        soloOnEvent = chartEvent;
-                    }
-                    else
-                    {
-                        InsertionSort(eventList, GetChartEventBytes(chartEvent));
+                        if (soloOnEvent != null && chartEvent.eventName == MidIOHelper.SoloEndEventText)
+                        {
+                            GetSoloBytes(soloOnEvent, chartEvent.tick, out onEvent, out offEvent);
+                            soloOnEvent = null;
+                        }
+                        else if (chartEvent.eventName == MidIOHelper.SoloEventText)
+                        {
+                            soloOnEvent = chartEvent;
+                        }
+                        else
+                        {
+                            InsertionSort(eventList, GetChartEventBytes(chartEvent));
+                        }
                     }
                 }
 
@@ -667,7 +771,7 @@ namespace MoonscraperChartEditor.Song.IO
 
         static byte[] MakeTrack(byte[] trackEvents, string trackName)
         {
-            byte[] trackNameEvent = TimedEvent(0, MetaTextEvent(TRACK_NAME_EVENT, trackName));
+            byte[] trackNameEvent = TimedEvent(0, MetaTextEvent(MetaTextEventType.TrackName, trackName));
 
             byte[] header = GetTrackHeader(trackNameEvent.Length + trackEvents.Length + END_OF_TRACK.Length);
             byte[] fullTrack = new byte[header.Length + trackNameEvent.Length + trackEvents.Length + END_OF_TRACK.Length];
@@ -701,10 +805,19 @@ namespace MoonscraperChartEditor.Song.IO
             return timedEvent;
         }
 
+        static byte[] MetaTextEvent(MetaTextEventType eventType, string text)
+        {
+            return MetaTextEvent((byte)eventType, text);
+        }
+
         static byte[] MetaTextEvent(byte m_event, string text)
         {
-            if (text.Length > 255)
-                throw new Exception("Text cannot be longer than 255 characters");
+            const int MaxTextLength = 127;
+            if (text.Length > MaxTextLength)
+            {
+                // Debug.LogWarning("Text cannot be longer than " + MaxTextLength + " characters, capping string " + text);
+                text = text.Substring(0, MaxTextLength);
+            }
 
             char[] chars = text.ToCharArray();
 
@@ -743,7 +856,7 @@ namespace MoonscraperChartEditor.Song.IO
             byte[] bytes = new byte[7];
 
             byte numerator = (byte)ts.numerator;
-            byte denominator = (byte)ts.denominator;
+            byte denominator = (byte)Math.Log(ts.denominator, 2);
 
             bytes[0] = 0xFF;
             bytes[1] = TIME_SIGNATURE_EVENT;
@@ -824,8 +937,11 @@ namespace MoonscraperChartEditor.Song.IO
 
         static void GetStarpowerBytes(Starpower sp, out SortableBytes onEvent, out SortableBytes offEvent)
         {
-            onEvent = new SortableBytes(sp.tick, new byte[] { ON_EVENT, MidIOHelper.STARPOWER_NOTE, VELOCITY });
-            offEvent = new SortableBytes(sp.tick + sp.length, new byte[] { OFF_EVENT, MidIOHelper.STARPOWER_NOTE, VELOCITY });
+            bool isDrumFill = sp.flags.HasFlag(Starpower.Flags.ProDrums_Activation);
+            byte spNote = isDrumFill ? MidIOHelper.STARPOWER_DRUM_FILL_0 : MidIOHelper.STARPOWER_NOTE;
+
+            onEvent = new SortableBytes(sp.tick, new byte[] { ON_EVENT, spNote, VELOCITY });
+            offEvent = new SortableBytes(sp.tick + sp.length, new byte[] { OFF_EVENT, spNote, VELOCITY });
         }
 
         static void GetSoloBytes(ChartEvent solo, uint soloEndTick, out SortableBytes onEvent, out SortableBytes offEvent)
@@ -836,19 +952,19 @@ namespace MoonscraperChartEditor.Song.IO
 
         static SortableBytes GetChartEventBytes(ChartEvent chartEvent)
         {
-            byte[] textEvent = MetaTextEvent(TEXT_EVENT, chartEvent.eventName);
+            byte[] textEvent = MetaTextEvent(MetaTextEventType.Text, chartEvent.eventName);
             return new SortableBytes(chartEvent.tick, textEvent);
         }
 
         static void GetUnrecognisedChartNoteBytes(Note note, out SortableBytes onEvent, out SortableBytes offEvent)
         {
-            GetNoteNumberBytes(note.rawNote, note, out onEvent, out offEvent);
+            GetNoteNumberBytes(note.rawNote, note, VELOCITY, out onEvent, out offEvent);
         }
 
-        static void GetNoteNumberBytes(int noteNumber, Note note, out SortableBytes onEvent, out SortableBytes offEvent)
+        static void GetNoteNumberBytes(int noteNumber, Note note, byte velocity, out SortableBytes onEvent, out SortableBytes offEvent)
         {
-            onEvent = new SortableBytes(note.tick, new byte[] { ON_EVENT, (byte)noteNumber, VELOCITY });
-            offEvent = new SortableBytes(note.tick + note.length, new byte[] { OFF_EVENT, (byte)noteNumber, VELOCITY });
+            onEvent = new SortableBytes(note.tick, new byte[] { ON_EVENT, (byte)noteNumber, velocity });
+            offEvent = new SortableBytes(note.tick + note.length, new byte[] { OFF_EVENT, (byte)noteNumber, velocity });
         }
 
         static int GetMidiNoteNumber(Note note, Chart.GameMode gameMode, Song.Difficulty difficulty)
@@ -856,6 +972,12 @@ namespace MoonscraperChartEditor.Song.IO
             Dictionary<int, int> noteToMidiOffsetDict;
             int difficultyNumber;
             int offset;
+
+            // Double kick, ala instrument+, kinda hacky
+            if (gameMode == Chart.GameMode.Drums && (note.flags & Note.Flags.DoubleKick) != 0 && NoteFunctions.AllowedToBeDoubleKick(note, difficulty))
+            {
+                return MidIOHelper.DOUBLE_KICK_NOTE;
+            }
 
             if (!c_gameModeNoteWriteOffsetDictLookup.TryGetValue(gameMode, out noteToMidiOffsetDict))
                 throw new System.Exception("Unhandled game mode, unable to get offset dictionary");

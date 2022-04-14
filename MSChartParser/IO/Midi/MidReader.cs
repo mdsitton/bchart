@@ -1,12 +1,12 @@
-﻿// Copyright (c) 2016-2020 Alexander Ong
+// Copyright (c) 2016-2020 Alexander Ong
 // See LICENSE in project root for license information.
 
 using System;
-using System.Collections;
+using System.IO;
 using System.Collections.Generic;
 using NAudio.Midi;
 using MoonscraperEngine;
-using System.IO;
+using System.Diagnostics;
 
 namespace MoonscraperChartEditor.Song.IO
 {
@@ -78,6 +78,15 @@ namespace MoonscraperChartEditor.Song.IO
         { MidIOHelper.SOLO_NOTE, (in NoteProcessParams noteProcessParams) => {
             ProcessNoteOnEventAsEvent(noteProcessParams, MidIOHelper.SoloEventText, MidIOHelper.SoloEndEventText);
         }},
+        { MidIOHelper.DOUBLE_KICK_NOTE, (in NoteProcessParams noteProcessParams) => {
+            ProcessNoteOnEventAsNote(noteProcessParams, Song.Difficulty.Expert, (int)Note.DrumPad.Kick, Note.Flags.InstrumentPlus);
+        }},
+
+        { MidIOHelper.STARPOWER_DRUM_FILL_0, ProcessNoteOnEventAsDrumFill },
+        { MidIOHelper.STARPOWER_DRUM_FILL_1, ProcessNoteOnEventAsDrumFill },
+        { MidIOHelper.STARPOWER_DRUM_FILL_2, ProcessNoteOnEventAsDrumFill },
+        { MidIOHelper.STARPOWER_DRUM_FILL_3, ProcessNoteOnEventAsDrumFill },
+        { MidIOHelper.STARPOWER_DRUM_FILL_4, ProcessNoteOnEventAsDrumFill },
     };
 
         static MidReader()
@@ -90,33 +99,44 @@ namespace MoonscraperChartEditor.Song.IO
         public static Song ReadMidi(string path, ref CallbackState callBackState)
         {
             Song song = new Song();
-            string directory = System.IO.Path.GetDirectoryName(path);
+            string directory = Path.GetDirectoryName(path);
 
             foreach (Song.AudioInstrument audio in EnumX<Song.AudioInstrument>.Values)
             {
-                string filename = string.Empty;
+                // First try any specific filenames for the instrument, then try the instrument name
+                List<string> filenamesToTry = new List<string>();
 
-                string[] locationOverrides = null;
-                if (c_audioStreamLocationOverrideDict.TryGetValue(audio, out locationOverrides))
+                if (c_audioStreamLocationOverrideDict.ContainsKey(audio))
                 {
-                    foreach (string overrideFilename in locationOverrides)
-                    {
-                        string testFilepath = directory + "\\" + overrideFilename.ToLower() + ".ogg";
+                    filenamesToTry.AddRange(c_audioStreamLocationOverrideDict[audio]);
+                }
 
-                        if (System.IO.File.Exists(testFilepath))
+                filenamesToTry.Add(audio.ToString());
+
+                // Search for each combination of filenamesToTry + audio extension until we find a file
+                string audioFilepath = null;
+
+                foreach (string testFilename in filenamesToTry)
+                {
+                    foreach (string extension in Globals.validAudioExtensions)
+                    {
+                        string testFilepath = Path.Combine(directory, testFilename.ToLower() + extension);
+
+                        if (File.Exists(testFilepath))
                         {
-                            filename = overrideFilename;
+                            audioFilepath = testFilepath;
                             break;
                         }
                     }
                 }
-                else
+
+                // If we didn't find a file, assign a default value to the audio path
+                if (audioFilepath == null)
                 {
-                    filename = audio.ToString();
+                    audioFilepath = Path.Combine(directory, audio.ToString().ToLower() + ".ogg");
                 }
 
-                string audioFilepath = directory + "\\" + filename.ToLower() + ".ogg";
-                Logger.Log(audioFilepath);
+                // Debug.Log(audioFilepath);
                 song.SetAudioLocation(audio, audioFilepath);
             }
 
@@ -141,7 +161,7 @@ namespace MoonscraperChartEditor.Song.IO
                 var trackName = midi.Events[i][0] as TextEvent;
                 if (trackName == null)
                     continue;
-                Logger.Log("Found midi track " + trackName.Text);
+                // Debug.Log("Found midi track " + trackName.Text);
 
                 string trackNameKey = trackName.Text.ToUpper();
                 if (trackNameKey == MidIOHelper.EVENTS_TRACK)
@@ -151,20 +171,10 @@ namespace MoonscraperChartEditor.Song.IO
                 else if (!c_trackExcludesMap.ContainsKey(trackNameKey))
                 {
                     bool importTrackAsVocalsEvents = trackNameKey == MidIOHelper.VOCALS_TRACK;
-#if APPLICATION_MOONSCRAPER
-#if !UNITY_EDITOR
+
                     if (importTrackAsVocalsEvents)
                     {
-                        callBackState = CallbackState.WaitingForExternalInformation;
-                        NativeMessageBox.Result result = NativeMessageBox.Show("A vocals track was found in the file. Would you like to import the text events as global lyrics events?", "Vocals Track Found", NativeMessageBox.Type.YesNo, null);
-                        callBackState = CallbackState.None;
-                        importTrackAsVocalsEvents = result == NativeMessageBox.Result.Yes;
-                    }
-#endif
-#endif
-                    if (importTrackAsVocalsEvents)
-                    {
-                        Logger.Log("Loading lyrics from Vocals track");
+                        // Debug.Log("Loading lyrics from Vocals track");
                         ReadTextEventsIntoGlobalEventsAsLyrics(midi.Events[i], song);
                     }
                     else
@@ -175,7 +185,7 @@ namespace MoonscraperChartEditor.Song.IO
                             instrument = Song.Instrument.Unrecognised;
                         }
 
-                        Logger.Log(string.Format("Loading midi track {0}", instrument));
+                        // Debug.LogFormat("Loading midi track {0}", instrument);
                         ReadNotes(midi.Events[i], song, instrument);
                     }
                 }
@@ -191,13 +201,13 @@ namespace MoonscraperChartEditor.Song.IO
                 var note = me as NoteOnEvent;
                 if (note != null)
                 {
-                    Logger.Log("Note: " + note.NoteNumber + ", Pos: " + note.AbsoluteTime + ", Vel: " + note.Velocity + ", Channel: " + note.Channel + ", Off pos: " + note.OffEvent.AbsoluteTime);
+                    // Debug.Log("Note: " + note.NoteNumber + ", Pos: " + note.AbsoluteTime + ", Vel: " + note.Velocity + ", Channel: " + note.Channel + ", Off pos: " + note.OffEvent.AbsoluteTime);
                 }
 
                 var text = me as TextEvent;
                 if (text != null)
                 {
-                    Logger.Log(text.Text + " " + text.AbsoluteTime);
+                    // Debug.Log(text.Text + " " + text.AbsoluteTime);
                 }
             }
         }
@@ -235,18 +245,44 @@ namespace MoonscraperChartEditor.Song.IO
 
         private static void ReadSongGlobalEvents(IList<MidiEvent> track, Song song)
         {
+            const string rb2SectionPrefix = "[" + MidIOHelper.Rb2SectionPrefix;
+            const string rb3SectionPrefix = "[" + MidIOHelper.Rb3SectionPrefix;
+
             for (int i = 1; i < track.Count; ++i)
             {
                 var text = track[i] as TextEvent;
 
                 if (text != null)
                 {
-                    if (text.Text.Contains("[section "))
+                    if (text.Text.Contains(rb2SectionPrefix))
+                    {
                         song.Add(new Section(text.Text.Substring(9, text.Text.Length - 10), (uint)text.AbsoluteTime), false);
-                    else if (text.Text.Contains("[prc_"))       // No idea what this actually is
-                        song.Add(new Section(text.Text.Substring(5, text.Text.Length - 6), (uint)text.AbsoluteTime), false);
+                    }
+                    else if (text.Text.Contains(rb3SectionPrefix) && text.Text.Length > 1)
+                    {
+                        string sectionText = string.Empty;
+                        char lastChar = text.Text[text.Text.Length - 1];
+                        if (lastChar == ']')
+                        {
+                            sectionText = text.Text.Substring(5, text.Text.Length - 6);
+                        }
+                        else if (lastChar == '"')
+                        {
+                            // Is in the format [prc_intro] "Intro". Strip for just the quoted section
+                            int startIndex = text.Text.IndexOf('"') + 1;
+                            sectionText = text.Text.Substring(startIndex, text.Text.Length - (startIndex + 1));
+                        }
+                        else
+                        {
+                            // Debug.LogError("Found section name in an unknown format: " + text.Text);
+                        }
+
+                        song.Add(new Section(sectionText, (uint)text.AbsoluteTime), false);
+                    }
                     else
+                    {
                         song.Add(new Event(text.Text.Trim(new char[] { '[', ']' }), (uint)text.AbsoluteTime), false);
+                    }
                 }
             }
 
@@ -258,11 +294,20 @@ namespace MoonscraperChartEditor.Song.IO
             for (int i = 1; i < track.Count; ++i)
             {
                 var text = track[i] as TextEvent;
-
-                if (text != null && text.Text.Length > 0 && text.Text[0] != '[')
+                if (text != null && text.Text.Length > 0 && text.MetaEventType == MetaEventType.Lyric)
                 {
                     string lyricEvent = MidIOHelper.LYRIC_EVENT_PREFIX + text.Text;
                     song.Add(new Event(lyricEvent, (uint)text.AbsoluteTime), false);
+                }
+
+                var phrase = track[i] as NoteOnEvent;
+                if (phrase != null && phrase.OffEvent != null && phrase.NoteNumber == MidIOHelper.PhraseMarker)
+                {
+                    string phraseStartEvent = MidIOHelper.PhraseStartText;
+                    song.Add(new Event(phraseStartEvent, (uint)phrase.AbsoluteTime), false);
+
+                    string phraseEndEvent = MidIOHelper.PhraseEndText;
+                    song.Add(new Event(phraseEndEvent, (uint)phrase.OffEvent.AbsoluteTime), false);
                 }
             }
 
@@ -307,13 +352,22 @@ namespace MoonscraperChartEditor.Song.IO
                     }
 
                     var tick = (uint)text.AbsoluteTime;
-                    var eventName = text.Text.Trim(new char[] { '[', ']' });
+                    var eventName = text.Text;
+
                     ChartEvent chartEvent = new ChartEvent(tick, eventName);
 
                     if (instrument == Song.Instrument.Unrecognised)
+                    {
                         unrecognised.Add(chartEvent);
+                    }
                     else
-                        song.GetChart(instrument, Song.Difficulty.Expert).Add(chartEvent);
+                    {
+                        // Copy text event to all difficulties so that .chart format can store these properly. Midi writer will strip duplicate events just fine anyway. 
+                        foreach (Song.Difficulty difficulty in EnumX<Song.Difficulty>.Values)
+                        {
+                            song.GetChart(instrument, difficulty).Add(chartEvent);
+                        }
+                    }
                 }
 
                 var note = track[i] as NoteOnEvent;
@@ -503,7 +557,7 @@ namespace MoonscraperChartEditor.Song.IO
                 if (endPos > 0)
                     --endPos;
 
-                Logger.Assert(instrument == Song.Instrument.Drums);
+                Debug.Assert(instrument == Song.Instrument.Drums);
 
                 foreach (Song.Difficulty difficulty in EnumX<Song.Difficulty>.Values)
                 {
@@ -515,7 +569,7 @@ namespace MoonscraperChartEditor.Song.IO
                     Note.DrumPad drumPadForFlag;
                     if (!MidIOHelper.CYMBAL_TO_PAD_LOOKUP.TryGetValue(flagEvent.NoteNumber, out drumPadForFlag))
                     {
-                        Logger.Assert(false, "Unknown note number flag " + flagEvent.NoteNumber);
+                        Debug.Assert(false, "Unknown note number flag " + flagEvent.NoteNumber);
                         continue;
                     }
 
@@ -743,8 +797,29 @@ namespace MoonscraperChartEditor.Song.IO
             NoteOnEvent noteEvent = noteProcessParams.noteEvent;
             var tick = (uint)noteEvent.AbsoluteTime;
             var sus = CalculateSustainLength(noteProcessParams.song, noteEvent);
+            var velocity = noteEvent.Velocity;
 
-            Note newNote = new Note(tick, ingameFret, sus, defaultFlags);
+            Note.Flags flags = defaultFlags;
+
+            if (noteProcessParams.instrument == Song.Instrument.Drums)
+            {
+                switch (velocity)
+                {
+                    case MidIOHelper.VELOCITY_ACCENT:
+                        {
+                            flags |= Note.Flags.ProDrums_Accent;
+                            break;
+                        }
+                    case MidIOHelper.VELOCITY_GHOST:
+                        {
+                            flags |= Note.Flags.ProDrums_Ghost;
+                            break;
+                        }
+                    default: break;
+                }
+            }
+
+            Note newNote = new Note(tick, ingameFret, sus, flags);
             chart.Add(newNote, false);
         }
 
@@ -760,6 +835,21 @@ namespace MoonscraperChartEditor.Song.IO
             foreach (Song.Difficulty diff in EnumX<Song.Difficulty>.Values)
             {
                 song.GetChart(instrument, diff).Add(new Starpower(tick, sus), false);
+            }
+        }
+
+        static void ProcessNoteOnEventAsDrumFill(in NoteProcessParams noteProcessParams)
+        {
+            var noteEvent = noteProcessParams.noteEvent;
+            var song = noteProcessParams.song;
+            var instrument = noteProcessParams.instrument;
+
+            var tick = (uint)noteEvent.AbsoluteTime;
+            var sus = CalculateSustainLength(song, noteEvent);
+
+            foreach (Song.Difficulty diff in EnumX<Song.Difficulty>.Values)
+            {
+                song.GetChart(instrument, diff).Add(new Starpower(tick, sus, Starpower.Flags.ProDrums_Activation), false);
             }
         }
 
@@ -836,6 +926,8 @@ namespace MoonscraperChartEditor.Song.IO
                 }
 
                 lastChordTick = note.tick;
+
+                Debug.Assert(note.type == noteType);
             }
         }
 

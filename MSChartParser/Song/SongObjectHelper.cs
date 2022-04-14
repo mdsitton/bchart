@@ -290,6 +290,7 @@ namespace MoonscraperChartEditor.Song
                                 //GameObject.Destroy(list[insertionPos].controller.gameObject);
                             }
 #endif
+
                             list[insertionPos] = item;
                         }
                         // Insert into sorted position

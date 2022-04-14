@@ -71,9 +71,17 @@ namespace MoonscraperChartEditor.Song
 
             // RB Pro Drums
             ProDrums_Cymbal = 1 << 6,
+
+            // Generic flag that mainly represents mechanics from Guitar Hero's Expert+ filtered drum notes such as Double Kick. This may apply to any difficulty now though.
+            InstrumentPlus = 1 << 7,
+            DoubleKick = InstrumentPlus,
+
+            // FoF/PS Pro Drums
+            ProDrums_Accent = 1 << 12,
+            ProDrums_Ghost = 1 << 13,
         }
 
-        public const Flags PER_NOTE_FLAGS = Flags.ProDrums_Cymbal;
+        public const Flags PER_NOTE_FLAGS = Flags.ProDrums_Cymbal | Flags.InstrumentPlus | Flags.ProDrums_Accent | Flags.ProDrums_Ghost;
 
         private readonly ID _classID = ID.Note;
 
@@ -188,7 +196,7 @@ namespace MoonscraperChartEditor.Song
 #if APPLICATION_MOONSCRAPER     // Moonscraper doesn't use note.chart.gameMode directly because notes might not have charts associated with them, esp when copy-pasting and storing undo-redo
                     return ChartEditor.Instance.currentChart.gameMode;
 #else
-                    return Chart.GameMode.Unrecognised;
+                return Chart.GameMode.Unrecognised;
 #endif
                 }
             }
@@ -343,11 +351,22 @@ namespace MoonscraperChartEditor.Song
         {
             get
             {
-                //Note[] chord = this.GetChord();
-                int mask = 0;
+                // Don't interate using chord, as chord will get messed up for the tool notes which override their linked list references. 
+                int mask = 1 << rawNote;
 
-                foreach (Note note in this.chord)
+                Note note = this;
+                while (note.previous != null && note.previous.tick == tick)
+                {
+                    note = note.previous;
                     mask |= (1 << note.rawNote);
+                }
+
+                note = this;
+                while (note.next != null && note.tick == note.next.tick)
+                {
+                    note = note.next;
+                    mask |= (1 << note.rawNote);
+                }
 
                 return mask;
             }
@@ -468,6 +487,32 @@ namespace MoonscraperChartEditor.Song
                 return ghliveGuitarFret == GHLiveGuitarFret.Open;
             else
                 return guitarFret == GuitarFret.Open;
+        }
+
+        public static Flags GetBannedFlagsForGameMode(Chart.GameMode gameMode)
+        {
+            Flags bannedFlags = Flags.None;
+
+            switch (gameMode)
+            {
+                case Chart.GameMode.Guitar:
+                case Chart.GameMode.GHLGuitar:
+                    {
+                        bannedFlags = Flags.ProDrums_Cymbal;
+                        break;
+                    }
+                case Chart.GameMode.Drums:
+                    {
+                        bannedFlags = Flags.Forced | Flags.Tap;
+                        break;
+                    }
+                default:
+                    {
+                        break;
+                    }
+            }
+
+            return bannedFlags;
         }
     }
 }

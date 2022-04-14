@@ -1,19 +1,23 @@
 ﻿// Copyright (c) 2016-2020 Alexander Ong
 // See LICENSE in project root for license information.
 
-using System;
+// Chart file format specifications- https://docs.google.com/document/d/1v2v0U-9HQ5qHeccpExDOLJ5CMPZZ3QytPmAG5WF0Kzs/edit?usp=sharing
+
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System;
 using System.Linq;
 using System.Text;
 using MoonscraperEngine;
+using System.Diagnostics;
 
 namespace MoonscraperChartEditor.Song.IO
 {
     public class ChartWriter
     {
         string path;
+        ExportOptions.Format format = ExportOptions.Format.Chart;
 
         public ChartWriter(string path)
         {
@@ -37,13 +41,32 @@ namespace MoonscraperChartEditor.Song.IO
 
         delegate void WriteAudioStreamSaveString(Song.AudioInstrument audio, string saveFormat);
 
+        public class ErrorReport
+        {
+            public StringBuilder errorList = new StringBuilder();
+            public ChartIOHelper.FileSubType resultantFileType = ChartIOHelper.FileSubType.Default;
+            public bool hasNonErrorFileTypeRelatedErrors { get; private set; }
+
+            public void AddError(string message, bool isFileTypeChangeFlag = false)
+            {
+                errorList.AppendLine(message);
+
+                if (!isFileTypeChangeFlag)
+                {
+                    hasNonErrorFileTypeRelatedErrors = true;
+                }
+            }
+        }
+
         // Link the method with which we should write our objects out with
         struct SongObjectWriteParameters
         {
             public uint scaledTick;
             public float resolutionScaleRatio;
             public Song.Instrument instrument;
+            public Song.Difficulty difficulty;
             public ExportOptions exportOptions;
+            public ErrorReport errorReport;
         }
         delegate void AppendSongObjectData(SongObject so, in SongObjectWriteParameters writeParameters, StringBuilder output);
         static readonly Dictionary<SongObject.ID, AppendSongObjectData> c_songObjectWriteFnLookup = new Dictionary<SongObject.ID, AppendSongObjectData>()
@@ -57,44 +80,61 @@ namespace MoonscraperChartEditor.Song.IO
         { SongObject.ID.Note, AppendNoteData },
     };
 
-        public void Write(Song song, ExportOptions exportOptions, out string errorList)
+        public void Write(Song song, ExportOptions exportOptions, out ErrorReport errorReport)
         {
             song.UpdateCache();
-            errorList = string.Empty;
+
+            if (Path.GetExtension(path) == MsceIOHelper.FileExtention)
+            {
+                Debug.Assert(exportOptions.format == ExportOptions.Format.Chart || exportOptions.format == ExportOptions.Format.Msce);
+                exportOptions.format = ExportOptions.Format.Msce;
+            }
+
+            errorReport = new ErrorReport();
             string saveString = string.Empty;
 
-            // Song properties
-            saveString += s_chartHeaderSong;
-            saveString += GetPropertiesStringWithoutAudio(song, exportOptions);
-
-            WriteAudioStreamSaveString WriteSaveAudioString = (audio, saveFormat) =>
+            try
             {
-                string audioString;
-                string audioLocation = song.GetAudioLocation(audio);
+                // Song properties
+                saveString += s_chartHeaderSong;
+                saveString += GetPropertiesStringWithoutAudio(song, exportOptions);
 
-                if (audioLocation != string.Empty && Path.GetDirectoryName(audioLocation).Replace("\\", "/") == Path.GetDirectoryName(path).Replace("\\", "/"))
-                    audioString = Path.GetFileName(audioLocation);
-                else
-                    audioString = audioLocation;
+                WriteAudioStreamSaveString WriteSaveAudioString = (audio, saveFormat) =>
+                {
+                    string audioString;
+                    string audioLocation = song.GetAudioLocation(audio);
 
-                if (!string.IsNullOrEmpty(audioString))
-                    saveString += string.Format(saveFormat, audioString);
-            };
+                    if (audioLocation != string.Empty && Path.GetDirectoryName(audioLocation).Replace("\\", "/") == Path.GetDirectoryName(path).Replace("\\", "/"))
+                        audioString = Path.GetFileName(audioLocation);
+                    else
+                        audioString = audioLocation;
 
-            // Song audio
-            WriteSaveAudioString(Song.AudioInstrument.Song, ChartIOHelper.MetaData.musicStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Guitar, ChartIOHelper.MetaData.guitarStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Bass, ChartIOHelper.MetaData.bassStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Rhythm, ChartIOHelper.MetaData.rhythmStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Keys, ChartIOHelper.MetaData.keysStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Drum, ChartIOHelper.MetaData.drumStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Drums_2, ChartIOHelper.MetaData.drum2Stream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Drums_3, ChartIOHelper.MetaData.drum3Stream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Drums_4, ChartIOHelper.MetaData.drum4Stream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Vocals, ChartIOHelper.MetaData.vocalStream.saveFormat);
-            WriteSaveAudioString(Song.AudioInstrument.Crowd, ChartIOHelper.MetaData.crowdStream.saveFormat);
+                    if (!string.IsNullOrEmpty(audioString))
+                        saveString += string.Format(saveFormat, audioString);
+                };
 
-            saveString += s_chartSectionFooter;
+                // Song audio
+                WriteSaveAudioString(Song.AudioInstrument.Song, ChartIOHelper.MetaData.musicStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Guitar, ChartIOHelper.MetaData.guitarStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Bass, ChartIOHelper.MetaData.bassStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Rhythm, ChartIOHelper.MetaData.rhythmStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Keys, ChartIOHelper.MetaData.keysStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Drum, ChartIOHelper.MetaData.drumStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Drums_2, ChartIOHelper.MetaData.drum2Stream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Drums_3, ChartIOHelper.MetaData.drum3Stream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Drums_4, ChartIOHelper.MetaData.drum4Stream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Vocals, ChartIOHelper.MetaData.vocalStream.saveFormat);
+                WriteSaveAudioString(Song.AudioInstrument.Crowd, ChartIOHelper.MetaData.crowdStream.saveFormat);
+
+                saveString += s_chartSectionFooter;
+            }
+            catch (System.Exception e)
+            {
+                string error = Logger.LogException(e, "Error with saving song properties");
+                errorReport.AddError(error);
+
+                saveString = string.Empty;  // Clear all the song properties because we don't want braces left open, which will screw up the loading of the chart
+            }
 
             // SyncTrack
             {
@@ -106,17 +146,17 @@ namespace MoonscraperChartEditor.Song.IO
                     new BPM(), new TimeSignature()
                 };
 
-                    saveString += GetSaveString(song, defaultsList, exportOptions, ref errorList);
+                    saveString += GetSaveString(song, defaultsList, exportOptions, errorReport);
                 }
 
-                saveString += GetSaveString(song, song.syncTrack, exportOptions, ref errorList);
+                saveString += GetSaveString(song, song.syncTrack, exportOptions, errorReport);
                 saveString += s_chartSectionFooter;
             }
 
             // Events
             {
                 saveString += s_chartHeaderEvents;
-                saveString += GetSaveString(song, song.eventsAndSections, exportOptions, ref errorList);
+                saveString += GetSaveString(song, song.eventsAndSections, exportOptions, errorReport);
                 saveString += s_chartSectionFooter;
             }
 
@@ -134,11 +174,11 @@ namespace MoonscraperChartEditor.Song.IO
                     string difficultySaveString = difficulty.ToString();
                     if (!c_difficultyToTrackNameLookup.TryGetValue(difficulty, out difficultySaveString))
                     {
-                        Logger.Assert(false, "Unable to find string for difficulty " + difficulty.ToString());
+                        Debug.Assert(false, "Unable to find string for difficulty " + difficulty.ToString());
                         continue;
                     }
 
-                    string chartString = GetSaveString(song, song.GetChart(instrument, difficulty).chartObjects, exportOptions, ref errorList, instrument);
+                    string chartString = GetSaveString(song, song.GetChart(instrument, difficulty).chartObjects, exportOptions, errorReport, instrument);
 
                     if (chartString == string.Empty)
                     {
@@ -165,7 +205,7 @@ namespace MoonscraperChartEditor.Song.IO
                                         break;
                                 }
 
-                                chartString = GetSaveString(song, song.GetChart(instrument, chartDiff).chartObjects, exportOptions, ref errorList, instrument);
+                                chartString = GetSaveString(song, song.GetChart(instrument, chartDiff).chartObjects, exportOptions, errorReport, instrument, chartDiff);
 
                                 if (exit)
                                     break;
@@ -188,7 +228,7 @@ namespace MoonscraperChartEditor.Song.IO
             // Unrecognised charts
             foreach (Chart chart in song.unrecognisedCharts)
             {
-                string chartString = GetSaveString(song, chart.chartObjects, exportOptions, ref errorList, Song.Instrument.Unrecognised);
+                string chartString = GetSaveString(song, chart.chartObjects, exportOptions, errorReport, Song.Instrument.Unrecognised);
 
                 saveString += string.Format(s_chartSectionHeaderFormat, chart.name);
                 saveString += chartString;
@@ -198,6 +238,12 @@ namespace MoonscraperChartEditor.Song.IO
             try
             {
                 // Save to file
+                if (errorReport.resultantFileType == ChartIOHelper.FileSubType.MoonscraperPropriety || exportOptions.format == ExportOptions.Format.Msce)
+                {
+                    // Rename the file to the correct file type
+                    path = Path.ChangeExtension(path, MsceIOHelper.FileExtention);
+                }
+
                 File.WriteAllText(path, saveString, System.Text.Encoding.UTF8);
             }
             catch (Exception e)
@@ -244,7 +290,14 @@ namespace MoonscraperChartEditor.Song.IO
             return saveString;
         }
 
-        string GetSaveString<T>(Song song, IList<T> list, ExportOptions exportOptions, ref string out_errorList, Song.Instrument instrument = Song.Instrument.Guitar) where T : SongObject
+        string GetSaveString<T>(
+            Song song,
+            IList<T> list,
+            ExportOptions exportOptions,
+            ErrorReport errorReport,
+            Song.Instrument instrument = Song.Instrument.Guitar,
+            Song.Difficulty difficulty = Song.Difficulty.Expert
+        ) where T : SongObject
         {
             System.Text.StringBuilder saveString = new System.Text.StringBuilder();
 
@@ -253,28 +306,37 @@ namespace MoonscraperChartEditor.Song.IO
             SongObjectWriteParameters writeParameters = new SongObjectWriteParameters();
             writeParameters.resolutionScaleRatio = resolutionScaleRatio;
             writeParameters.instrument = instrument;
+            writeParameters.difficulty = difficulty;
             writeParameters.exportOptions = exportOptions;
+            writeParameters.errorReport = errorReport;
 
             for (int i = 0; i < list.Count; ++i)
             {
                 SongObject songObject = list[i];
-
-                uint tick = (uint)Math.Round(songObject.tick * resolutionScaleRatio) + exportOptions.tickOffset;
-                saveString.Append(Globals.TABSPACE + tick);
-
-                writeParameters.scaledTick = tick;
-
-                AppendSongObjectData writeMethod;
-                if (c_songObjectWriteFnLookup.TryGetValue((SongObject.ID)songObject.classID, out writeMethod))
+                try
                 {
-                    writeMethod(songObject, writeParameters, saveString);
-                }
-                else
-                {
-                    throw new Exception("Method not defined. Unable to write data for object " + ((SongObject.ID)songObject.classID).ToString());
-                }
+                    uint tick = (uint)Math.Round(songObject.tick * resolutionScaleRatio) + exportOptions.tickOffset;
+                    saveString.Append(Globals.TABSPACE + tick);
 
-                saveString.Append(Globals.LINE_ENDING);
+                    writeParameters.scaledTick = tick;
+
+                    AppendSongObjectData writeMethod;
+                    if (c_songObjectWriteFnLookup.TryGetValue((SongObject.ID)songObject.classID, out writeMethod))
+                    {
+                        writeMethod(songObject, writeParameters, saveString);
+                    }
+                    else
+                    {
+                        throw new Exception("Method not defined. Unable to write data for object " + ((SongObject.ID)songObject.classID).ToString());
+                    }
+
+                    saveString.Append(Globals.LINE_ENDING);
+                }
+                catch (System.Exception e)
+                {
+                    string error = Logger.LogException(e, "Error with saving object #" + i + " as " + songObject);
+                    errorReport.AddError(error);
+                }
             }
 
             return saveString.ToString();
@@ -315,7 +377,8 @@ namespace MoonscraperChartEditor.Song.IO
         static readonly string s_sectionFormat = " = E \"section {0}\"";
         static readonly string s_eventFormat = " = E \"{0}\"";
         static readonly string s_chartEventFormat = " = E {0}";
-        static readonly string s_starpowerFormat = " = S 2 {0}";
+        static readonly string s_starpowerFormat = " = S " + ChartIOHelper.c_starpowerId + " {0}";
+        static readonly string s_starpowerDrumFillFormat = " = S " + ChartIOHelper.c_starpowerDrumFillId + " {0}";
         static readonly string s_noteFormat = " = N {0} {1}";
 
         // Initial tick is automatically written
@@ -355,19 +418,88 @@ namespace MoonscraperChartEditor.Song.IO
         static void AppendEventData(SongObject songObject, in SongObjectWriteParameters writeParameters, StringBuilder output)
         {
             Event songEvent = songObject as Event;
-            output.AppendFormat(s_eventFormat, songEvent.title);
+            string eventName = songEvent.title;
+
+            if (songEvent.IsLyric())
+            {
+                if (writeParameters.exportOptions.substituteCHLyricChars)
+                {
+                    foreach (var charSubs in LyricHelper.CloneHeroCharSubstitutions)
+                    {
+                        eventName = eventName.Replace(charSubs.Key, charSubs.Value);
+                    }
+                }
+
+                // Check for invalid characters
+                if (writeParameters.exportOptions.isGeneralSave)
+                {
+                    string temp = eventName;
+                    foreach (var replacement in MsceIOHelper.LyricEventCharReplacementToMsce)
+                    {
+                        eventName = eventName.Replace(replacement.Key, replacement.Value);
+                    }
+
+                    if (eventName != temp && writeParameters.exportOptions.format != ExportOptions.Format.Msce)
+                    {
+                        writeParameters.errorReport.AddError(string.Format("Warning: Found a global event \"{0}\" with invalid character/s. This will force the file to be saved in a propriety format (.msce) and will need to be re-exported to be readable by 3rd party rhythm games.", songEvent.title), true);
+
+                        writeParameters.errorReport.resultantFileType = ChartIOHelper.FileSubType.MoonscraperPropriety;
+                    }
+                }
+                else
+                {
+                    string doubleQuote = "\"";
+
+                    if (eventName.Contains(doubleQuote))
+                    {
+                        eventName = eventName.Replace(doubleQuote, LyricHelper.CloneHeroCharSubstitutions[doubleQuote.ToString()]);
+                        writeParameters.errorReport.AddError(string.Format("Warning: Found a global event \"{0}\" with double quote character/s. This has been automatically replaced with a backtick character as these characters are not supported in these kinds of events within the .chart file format.", songEvent.title));
+                    }
+                }
+            }
+
+            output.AppendFormat(s_eventFormat, eventName);
         }
 
         static void AppendChartEventData(SongObject songObject, in SongObjectWriteParameters writeParameters, StringBuilder output)
         {
             ChartEvent chartEvent = songObject as ChartEvent;
-            output.AppendFormat(s_chartEventFormat, chartEvent.eventName);
+
+            string eventName = chartEvent.eventName;
+
+            if (writeParameters.exportOptions.isGeneralSave)
+            {
+                foreach (var replacement in MsceIOHelper.LocalEventCharReplacementToMsce)
+                {
+                    eventName = eventName.Replace(replacement.Key, replacement.Value);
+                }
+
+                if (eventName != chartEvent.eventName && writeParameters.exportOptions.format != ExportOptions.Format.Msce)
+                {
+                    writeParameters.errorReport.AddError(string.Format("Warning: Found a track event \"{0}\" with invalid character/s for the Chart file format. This will force the file to be saved in a propriety format (.msce) and will need to be re-exported via the Export menu to be readable by 3rd party rhythm games.", chartEvent.eventName), true);
+
+                    writeParameters.errorReport.resultantFileType = ChartIOHelper.FileSubType.MoonscraperPropriety;
+                }
+            }
+            else
+            {
+                char testChar = ' ';
+                if (eventName.Contains(testChar))
+                {
+                    eventName = eventName.Replace(' ', '_');
+                    writeParameters.errorReport.AddError(string.Format("Warning: Found a track event \"{0}\" with space character/s. This has been automatically replaced with an underscore as these characters are not supported in these kinds of events within the .chart file format.", chartEvent.eventName));
+                }
+            }
+
+            output.AppendFormat(s_chartEventFormat, eventName);
         }
 
         static void AppendStarpowerData(SongObject songObject, in SongObjectWriteParameters writeParameters, StringBuilder output)
         {
             Starpower sp = songObject as Starpower;
-            output.AppendFormat(s_starpowerFormat, (uint)Math.Round(sp.length * writeParameters.resolutionScaleRatio));
+            string saveFormat = sp.flags.HasFlag(Starpower.Flags.ProDrums_Activation) ? s_starpowerDrumFillFormat : s_starpowerFormat;
+
+            output.AppendFormat(saveFormat, (uint)Math.Round(sp.length * writeParameters.resolutionScaleRatio));
         }
 
         static void AppendNoteData(SongObject songObject, in SongObjectWriteParameters writeParameters, StringBuilder output)
@@ -376,6 +508,7 @@ namespace MoonscraperChartEditor.Song.IO
             int fretNumber;
 
             Song.Instrument instrument = writeParameters.instrument;
+            Song.Difficulty difficulty = writeParameters.difficulty;
 
             if (writeParameters.instrument != Song.Instrument.Unrecognised)
             {
@@ -391,11 +524,19 @@ namespace MoonscraperChartEditor.Song.IO
             else
                 fretNumber = note.rawNote;
 
+            // Write out the instrument+ version of the note if applicable
+            if (writeParameters.exportOptions.forced && (note.flags & Note.Flags.DoubleKick) != 0 && NoteFunctions.AllowedToBeDoubleKick(note, difficulty))
+            {
+                fretNumber += ChartIOHelper.c_instrumentPlusOffset;
+            }
+
             output.AppendFormat(s_noteFormat, fretNumber, (uint)Math.Round(note.length * writeParameters.resolutionScaleRatio));
 
             if (writeParameters.exportOptions.forced)
             {
-                if (note.flags != Note.Flags.None)
+                Note.Flags bannedFlags = Note.GetBannedFlagsForGameMode(Song.InstumentToChartGameMode(instrument));
+                Note.Flags noteFlags = note.flags & ~bannedFlags;   // Last ditched error correction. Can't write out forced flags as it will be confused for 5th lane drums notes on drum tracks etc.
+                if (noteFlags != Note.Flags.None)
                 {
                     // Only need to get the flags of one note of a chord
                     if (note.next == null || (note.next != null && note.next.tick != note.tick))
@@ -409,7 +550,7 @@ namespace MoonscraperChartEditor.Song.IO
                         // Write out forced flag
                         {
                             Note.Flags flagToTest = Note.Flags.Forced;
-                            if ((note.flags & flagToTest) != 0)
+                            if ((noteFlags & flagToTest) != 0)
                             {
                                 int value;
                                 if (c_guitarFlagToNumLookup.TryGetValue(flagToTest, out value))  // Todo, if different flags have different values for the same flags, we'll need to use different lookups
@@ -424,7 +565,7 @@ namespace MoonscraperChartEditor.Song.IO
                         // Write out tap flag
                         {
                             Note.Flags flagToTest = Note.Flags.Tap;
-                            if (!note.IsOpenNote() && (note.flags & flagToTest) != 0)
+                            if (!note.IsOpenNote() && (noteFlags & flagToTest) != 0)
                             {
                                 int value;
                                 if (c_guitarFlagToNumLookup.TryGetValue(flagToTest, out value))  // Todo, if different flags have different values for the same flags, we'll need to use different lookups
@@ -439,7 +580,7 @@ namespace MoonscraperChartEditor.Song.IO
                 }
 
                 // Write out cymbal flag for each note
-                if (writeParameters.instrument == Song.Instrument.Drums && false)   // Disabled while CH devs are still testing
+                if (writeParameters.instrument == Song.Instrument.Drums)
                 {
                     int writeValue = ChartIOHelper.c_proDrumsOffset;
                     int noteOffset;
@@ -450,7 +591,6 @@ namespace MoonscraperChartEditor.Song.IO
 
                     writeValue += noteOffset;
 
-                    // Need to write this out if there ISN'T a cymbal flag on the note
                     Note.Flags defaultFlagsForNote;
                     if (!ChartIOHelper.c_drumNoteDefaultFlagsLookup.TryGetValue(note.rawNote, out defaultFlagsForNote))
                     {
@@ -458,7 +598,7 @@ namespace MoonscraperChartEditor.Song.IO
                     }
 
                     bool cymbalByDefault = (defaultFlagsForNote & Note.Flags.ProDrums_Cymbal) != 0;
-                    bool flaggedAsCymbal = (note.flags & Note.Flags.ProDrums_Cymbal) != 0;
+                    bool flaggedAsCymbal = (noteFlags & Note.Flags.ProDrums_Cymbal) != 0;
                     bool writeCymbalFlag = cymbalByDefault != flaggedAsCymbal;
 
                     if (writeCymbalFlag && !note.IsOpenNote())

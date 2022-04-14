@@ -15,6 +15,7 @@ namespace MoonscraperChartEditor.Song
     {
         // Song properties
         public Metadata metaData = new Metadata();
+
         public string name
         {
             get
@@ -26,7 +27,7 @@ namespace MoonscraperChartEditor.Song
                 metaData.name = value;
             }
         }
-        public float resolution = 192;
+        public float resolution = SongConfig.STANDARD_BEAT_RESOLUTION;
         public float offset = 0;
 
         string[] audioLocations = new string[EnumX<AudioInstrument>.Count];
@@ -42,6 +43,13 @@ namespace MoonscraperChartEditor.Song
                 exportOptions.format = IO.ExportOptions.Format.Chart;
                 exportOptions.targetResolution = this.resolution;
                 exportOptions.tickOffset = 0;
+                exportOptions.isGeneralSave = false;
+
+                exportOptions.midiOptions = new IO.ExportOptions.MidiOptions()
+                {
+                    difficultyToUseGlobalTrackEvents = Difficulty.Expert,
+                    rbFormat = IO.ExportOptions.MidiOptions.RBFormat.RB3,
+                };
 
                 return exportOptions;
             }
@@ -187,7 +195,15 @@ namespace MoonscraperChartEditor.Song
 
         public Chart GetChart(Instrument instrument, Difficulty difficulty)
         {
-            return charts[(int)instrument * EnumX<Difficulty>.Count + (int)difficulty];
+            try
+            {
+                return charts[(int)instrument * EnumX<Difficulty>.Count + (int)difficulty];
+            }
+            catch (Exception e)
+            {
+                // Console.WriteLine(e.Message);
+                return charts[0];
+            }
         }
 
         /// <summary>
