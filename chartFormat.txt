@@ -1,7 +1,7 @@
 bchart format:
 
         event format:
-        [uint32 tickPos] [uint8 eventType] [uint32 eventByteLength] [eventData]
+        [uint32 tickPos] [uint8 eventType] [uint16 eventByteLength] [eventData]
         event types:
             [Tempo 0x01]
                 [0x01] [length 4] [uint32 tempo]
@@ -14,9 +14,10 @@ bchart format:
             [Phrase 0x5]
                 [0x4] [length 2] [byte phraseType] [byte phraseType] [uint32 tickLength]
             [Note 0x06]
-                [0x5] [7+noteModifiersLength] [uint16 noteNumber] [uint32 tickLength] [byte noteModifiersLength] [byte noteModifier1] [byte noteModifier2] [byte noteModifierX]
+                [0x5] [7+noteModifiersLength] [byte noteNumber] [uint32 tickLength] [byte noteModifiersLength] [byte noteModifier1] [byte noteModifier2] [byte noteModifierX]
     header:
-        uint16 - 0xBCAF
+        uint32 - 0x46484342 - BCHF 0x42 0x43 0x48 0x46
+        uint32 - headerLength
         uint16 - Version number
         uint16 - Resolution
         uint16 - instrumentCount
@@ -36,5 +37,10 @@ bchart format:
 
     InstrumentDiffEvents:
         difficultyID
-
         [uint32 tickPos] [uint32 eventByteLength] [event data]
+
+
+Other considerations:
+    Animation data, venue, characters, camera
+    Modchart events
+    Instrument shared events track (could be useful for various text events, solos sp etc)

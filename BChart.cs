@@ -21,24 +21,37 @@ public static class BChartWriter
     public static void WriteHeader(FileStream fs, uint instrumentCount, uint resolution)
     {
         // header
-        fs.WriteUInt16LE(0xBCAF);
+        const int headerLength = 6;
+        fs.WriteUInt32LE(0x46484342); // BCHF
+        fs.WriteUInt32LE(headerLength);
         fs.WriteUInt16LE(1); // version 1
         fs.WriteUInt16LE((ushort)resolution);
         fs.WriteUInt16LE((ushort)instrumentCount);
     }
 
-    public static void WriteTextEvent(FileStream fs, ChartEvent ev)
+    public static byte[] GetStringAsBytes(ReadOnlySpan<char> chars, out Span<byte> spanOut)
     {
-        ReadOnlySpan<char> textSpan = ev.eventName;
-
-        int estCharCount = Encoding.UTF8.GetByteCount(textSpan);
+        int estCharCount = Encoding.UTF8.GetByteCount(chars);
         byte[] bytes = ArrayPool<byte>.Shared.Rent(estCharCount);
         Span<byte> outSpan = bytes;
-        Encoding.UTF8.GetBytes(textSpan, outSpan);
+        Encoding.UTF8.GetBytes(chars, outSpan);
+        spanOut = outSpan;
+        return bytes;
+    }
 
+    public static void WriteTextEvent(FileStream fs, ChartEvent ev)
+    {
+
+        byte[] bytes = GetStringAsBytes(ev.eventName, out var outSpan);
+
+        // limit string size to ushort max value
+        if (outSpan.Length > ushort.MaxValue)
+        {
+            outSpan = outSpan.Slice(0, ushort.MaxValue);
+        }
         fs.WriteUInt32LE(ev.tick);
         fs.WriteByte(EVENT_TEXT);
-        fs.WriteUInt32LE((uint)outSpan.Length);
+        fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -46,16 +59,16 @@ public static class BChartWriter
 
     public static void WriteTextEvent(FileStream fs, Event ev)
     {
-        ReadOnlySpan<char> textSpan = ev.title;
+        byte[] bytes = GetStringAsBytes(ev.title, out var outSpan);
 
-        int estCharCount = Encoding.UTF8.GetByteCount(textSpan);
-        byte[] bytes = ArrayPool<byte>.Shared.Rent(estCharCount);
-        Span<byte> outSpan = bytes;
-        Encoding.UTF8.GetBytes(textSpan, outSpan);
-
+        // limit string size to ushort max value
+        if (outSpan.Length > ushort.MaxValue)
+        {
+            outSpan = outSpan.Slice(0, ushort.MaxValue);
+        }
         fs.WriteUInt32LE(ev.tick);
         fs.WriteByte(EVENT_TEXT);
-        fs.WriteUInt32LE((uint)outSpan.Length);
+        fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -63,16 +76,16 @@ public static class BChartWriter
 
     public static void WriteSection(FileStream fs, Section section)
     {
-        ReadOnlySpan<char> textSpan = section.title;
+        byte[] bytes = GetStringAsBytes(section.title, out var outSpan);
 
-        int estCharCount = Encoding.UTF8.GetByteCount(textSpan);
-        byte[] bytes = ArrayPool<byte>.Shared.Rent(estCharCount);
-        Span<byte> outSpan = bytes;
-        Encoding.UTF8.GetBytes(textSpan, outSpan);
-
+        // limit string size to ushort max value
+        if (outSpan.Length > ushort.MaxValue)
+        {
+            outSpan = outSpan.Slice(0, ushort.MaxValue);
+        }
         fs.WriteUInt32LE(section.tick);
         fs.WriteByte(EVENT_SECTION);
-        fs.WriteUInt32LE((uint)outSpan.Length);
+        fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -100,7 +113,7 @@ public static class BChartWriter
     {
         fs.WriteUInt32LE(tick);
         fs.WriteByte(EVENT_PHRASE);
-        fs.WriteUInt32LE(5);
+        fs.WriteUInt16LE(5);
         fs.WriteByte(phraseType);
         fs.WriteUInt32LE(tickLength);
     }
@@ -123,9 +136,11 @@ public static class BChartWriter
             modifierLength++;
         }
 
+        ushort byteLength = (ushort)(eventLength + modifierLength);
+
         fs.WriteUInt32LE(note.tick);
         fs.WriteByte(EVENT_NOTE);
-        fs.WriteUInt32LE(eventLength + modifierLength);
+        fs.WriteUInt16LE(byteLength);
         fs.WriteUInt16LE((ushort)note.rawNote);
         fs.WriteUInt32LE(note.length);
         fs.WriteByte(modifierLength);
@@ -240,7 +255,7 @@ public static class BChartWriter
     {
         fs.WriteUInt32LE(ts.tick);
         fs.WriteByte(EVENT_TIME_SIG);
-        fs.WriteUInt32LE(2);
+        fs.WriteUInt16LE(2);
         fs.WriteByte((byte)ts.numerator);
         fs.WriteByte((byte)ts.denominator);
     }
@@ -251,7 +266,7 @@ public static class BChartWriter
         uint microSecondsPerQuarter = (uint)(microsecondsPerMinute * 1000 / bpm.value);
         fs.WriteUInt32LE(bpm.tick);
         fs.WriteByte(EVENT_TEMPO);
-        fs.WriteUInt32LE(4);
+        fs.WriteUInt16LE(4);
         fs.WriteUInt32LE(microSecondsPerQuarter);
     }
 
