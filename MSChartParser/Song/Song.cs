@@ -199,7 +199,7 @@ namespace MoonscraperChartEditor.Song
             {
                 return charts[(int)instrument * EnumX<Difficulty>.Count + (int)difficulty];
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 // Console.WriteLine(e.Message);
                 return charts[0];
