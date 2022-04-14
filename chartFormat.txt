@@ -1,7 +1,7 @@
 bchart format:
 
         event format:
-        [uint32 tickPos] [uint8 eventType] [uint16 eventByteLength] [eventData]
+        [uint32 tickPos] [uint8 eventType] [uint8 eventByteLength] [eventData]
         event types:
             [Tempo 0x01]
                 [0x01] [length 4] [uint32 tempo]

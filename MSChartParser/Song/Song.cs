@@ -202,7 +202,7 @@ namespace MoonscraperChartEditor.Song
             catch (Exception)
             {
                 // Console.WriteLine(e.Message);
-                return charts[0];
+                return null;
             }
         }
 

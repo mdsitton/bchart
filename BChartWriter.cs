@@ -38,14 +38,14 @@ public static class BChartWriter
     {
         byte[] bytes = GetStringAsBytes(ev.eventName, out var outSpan);
 
-        // limit string size to ushort max value
-        if (outSpan.Length > ushort.MaxValue)
+        // limit string size to byte max value
+        if (outSpan.Length > 255)
         {
-            outSpan = outSpan.Slice(0, ushort.MaxValue);
+            outSpan = outSpan.Slice(0, 255);
         }
         fs.WriteUInt32LE(ev.tick);
         fs.WriteByte(BChartConsts.EVENT_TEXT);
-        fs.WriteUInt16LE((ushort)outSpan.Length);
+        fs.WriteByte((byte)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -55,14 +55,14 @@ public static class BChartWriter
     {
         byte[] bytes = GetStringAsBytes(ev.title, out var outSpan);
 
-        // limit string size to ushort max value
-        if (outSpan.Length > ushort.MaxValue)
+        // limit string size to byte max value
+        if (outSpan.Length > 255)
         {
-            outSpan = outSpan.Slice(0, ushort.MaxValue);
+            outSpan = outSpan.Slice(0, 255);
         }
         fs.WriteUInt32LE(ev.tick);
         fs.WriteByte(BChartConsts.EVENT_TEXT);
-        fs.WriteUInt16LE((ushort)outSpan.Length);
+        fs.WriteByte((byte)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -72,14 +72,14 @@ public static class BChartWriter
     {
         byte[] bytes = GetStringAsBytes(section.title, out var outSpan);
 
-        // limit string size to ushort max value
-        if (outSpan.Length > ushort.MaxValue)
+        // limit string size to byte max value
+        if (outSpan.Length > 255)
         {
-            outSpan = outSpan.Slice(0, ushort.MaxValue);
+            outSpan = outSpan.Slice(0, 255);
         }
         fs.WriteUInt32LE(section.tick);
         fs.WriteByte(BChartConsts.EVENT_SECTION);
-        fs.WriteUInt16LE((ushort)outSpan.Length);
+        fs.WriteByte((byte)outSpan.Length);
         fs.Write(outSpan);
 
         ArrayPool<byte>.Shared.Return(bytes);
@@ -105,7 +105,7 @@ public static class BChartWriter
     {
         fs.WriteUInt32LE(tick);
         fs.WriteByte(BChartConsts.EVENT_PHRASE);
-        fs.WriteUInt16LE(5);
+        fs.WriteByte(5);
         fs.WriteByte(phraseType);
         fs.WriteUInt32LE(tickLength);
     }
@@ -115,21 +115,18 @@ public static class BChartWriter
         uint eventLength = 7; // Note event is atleast 7 bytes
         byte modifierLength = 0;
 
-        if (note.forced)
+        if (note.forced || note.type == Note.NoteType.Tap ||
+            note.flags.HasFlag(Note.Flags.ProDrums_Accent) ||
+            note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
         {
             modifierLength++;
         }
 
-        if (note.type == Note.NoteType.Tap)
-        {
-            modifierLength++;
-        }
-
-        ushort byteLength = (ushort)(eventLength + modifierLength);
+        byte byteLength = (byte)(eventLength + modifierLength);
 
         fs.WriteUInt32LE(note.tick);
         fs.WriteByte(BChartConsts.EVENT_NOTE);
-        fs.WriteUInt16LE(byteLength);
+        fs.WriteByte(byteLength);
         fs.WriteUInt16LE((ushort)note.rawNote);
         fs.WriteUInt32LE(note.length);
         fs.WriteByte(modifierLength);
@@ -245,7 +242,7 @@ public static class BChartWriter
     {
         fs.WriteUInt32LE(ts.tick);
         fs.WriteByte(BChartConsts.EVENT_TIME_SIG);
-        fs.WriteUInt16LE(2);
+        fs.WriteByte(2);
         fs.WriteByte((byte)ts.numerator);
         fs.WriteByte((byte)ts.denominator);
     }
@@ -256,7 +253,7 @@ public static class BChartWriter
         uint microSecondsPerQuarter = (uint)(microsecondsPerMinute * 1000 / bpm.value);
         fs.WriteUInt32LE(bpm.tick);
         fs.WriteByte(BChartConsts.EVENT_TEMPO);
-        fs.WriteUInt16LE(4);
+        fs.WriteByte(4);
         fs.WriteUInt32LE(microSecondsPerQuarter);
     }
 
@@ -312,7 +309,7 @@ public static class BChartWriter
 
             foreach (var inst in charts)
             {
-                // Console.WriteLine($"Writing {inst.Key}");
+                Console.WriteLine($"Writing {inst.Key}");
                 WriteInstrument(fs, inst.Key, inst.Value);
             }
         }
