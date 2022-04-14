@@ -11,18 +11,12 @@ using System.Buffers;
 
 public static class BChartWriter
 {
-    public const byte EVENT_TEMPO = 0x01;
-    public const byte EVENT_TIME_SIG = 0x02;
-    public const byte EVENT_TEXT = 0x03;
-    public const byte EVENT_SECTION = 0x04;
-    public const byte EVENT_PHRASE = 0x05;
-    public const byte EVENT_NOTE = 0x06;
 
     public static void WriteHeader(FileStream fs, uint instrumentCount, uint resolution)
     {
         // header
         const int headerLength = 6;
-        fs.WriteUInt32LE(0x46484342); // BCHF
+        fs.WriteUInt32LE(BChartConsts.HeaderChunkName); // BCHF
         fs.WriteUInt32LE(headerLength);
         fs.WriteUInt16LE(1); // version 1
         fs.WriteUInt16LE((ushort)resolution);
@@ -41,7 +35,6 @@ public static class BChartWriter
 
     public static void WriteTextEvent(FileStream fs, ChartEvent ev)
     {
-
         byte[] bytes = GetStringAsBytes(ev.eventName, out var outSpan);
 
         // limit string size to ushort max value
@@ -50,7 +43,7 @@ public static class BChartWriter
             outSpan = outSpan.Slice(0, ushort.MaxValue);
         }
         fs.WriteUInt32LE(ev.tick);
-        fs.WriteByte(EVENT_TEXT);
+        fs.WriteByte(BChartConsts.EVENT_TEXT);
         fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
@@ -67,7 +60,7 @@ public static class BChartWriter
             outSpan = outSpan.Slice(0, ushort.MaxValue);
         }
         fs.WriteUInt32LE(ev.tick);
-        fs.WriteByte(EVENT_TEXT);
+        fs.WriteByte(BChartConsts.EVENT_TEXT);
         fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
@@ -84,7 +77,7 @@ public static class BChartWriter
             outSpan = outSpan.Slice(0, ushort.MaxValue);
         }
         fs.WriteUInt32LE(section.tick);
-        fs.WriteByte(EVENT_SECTION);
+        fs.WriteByte(BChartConsts.EVENT_SECTION);
         fs.WriteUInt16LE((ushort)outSpan.Length);
         fs.Write(outSpan);
 
@@ -93,6 +86,7 @@ public static class BChartWriter
 
     public static void WriteGlobalEvents(FileStream fs, IList<Event> events)
     {
+        fs.WriteUInt32LE(BChartConsts.GlobalEventsChunkName); // EVTS
         foreach (var ev in events)
         {
             if (ev is Section section)
@@ -106,20 +100,14 @@ public static class BChartWriter
         }
     }
 
-    public const byte PHRASE_STARPOWER = 0x01;
-    public const byte PHRASE_SOLO = 0x02;
-
     public static void WritePhrase(FileStream fs, byte phraseType, uint tick, uint tickLength)
     {
         fs.WriteUInt32LE(tick);
-        fs.WriteByte(EVENT_PHRASE);
+        fs.WriteByte(BChartConsts.EVENT_PHRASE);
         fs.WriteUInt16LE(5);
         fs.WriteByte(phraseType);
         fs.WriteUInt32LE(tickLength);
     }
-
-    public const byte MODIFIER_FORCED = 0x01;
-    public const byte MODIFIER_TAP = 0x02;
 
     public static void WriteNote(FileStream fs, Note note)
     {
@@ -139,7 +127,7 @@ public static class BChartWriter
         ushort byteLength = (ushort)(eventLength + modifierLength);
 
         fs.WriteUInt32LE(note.tick);
-        fs.WriteByte(EVENT_NOTE);
+        fs.WriteByte(BChartConsts.EVENT_NOTE);
         fs.WriteUInt16LE(byteLength);
         fs.WriteUInt16LE((ushort)note.rawNote);
         fs.WriteUInt32LE(note.length);
@@ -147,22 +135,32 @@ public static class BChartWriter
 
         if (note.forced)
         {
-            fs.WriteByte(MODIFIER_FORCED);
+            fs.WriteByte(BChartConsts.MODIFIER_FORCED);
         }
 
         if (note.type == Note.NoteType.Tap)
         {
-            fs.WriteByte(MODIFIER_TAP);
+            fs.WriteByte(BChartConsts.MODIFIER_TAP);
         }
-    }
 
-    public const byte DIFFICULTY_EASY = 0x00;
-    public const byte DIFFICULTY_MEDIUM = 0x01;
-    public const byte DIFFICULTY_HARD = 0x02;
-    public const byte DIFFICULTY_EXPERT = 0x02;
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
+        {
+            fs.WriteByte(BChartConsts.MODIFIER_DRUMS_ACCENT);
+        }
+
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
+        {
+            fs.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
+        }
+        // if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
+        // {
+        //     fs.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
+        // }
+    }
 
     public static void WriteDifficulty(FileStream fs, Difficulty diff, Chart chart)
     {
+        fs.WriteUInt32LE(BChartConsts.DifficultyChunkName); // DIFF
         int i = 0;
         foreach (var ev in chart.chartObjects)
         {
@@ -173,7 +171,7 @@ public static class BChartWriter
                     WriteNote(fs, note);
                     break;
                 case Starpower sp:
-                    WritePhrase(fs, PHRASE_SOLO, sp.tick, sp.length);
+                    WritePhrase(fs, BChartConsts.PHRASE_SOLO, sp.tick, sp.length);
                     break;
                 case ChartEvent chEv:
                     {
@@ -188,7 +186,7 @@ public static class BChartWriter
                                     if (chNext.eventName == MidIOHelper.SoloEndEventText)
                                     {
                                         foundMatch = true;
-                                        WritePhrase(fs, PHRASE_SOLO, chEv.tick, chNext.tick - chEv.tick);
+                                        WritePhrase(fs, BChartConsts.PHRASE_SOLO, chEv.tick, chNext.tick - chEv.tick);
                                         break;
                                     }
                                 }
@@ -197,7 +195,7 @@ public static class BChartWriter
                             {
                                 // Make length match until the last chart event
                                 var last = chart.chartObjects[chart.chartObjects.Count - 1];
-                                WritePhrase(fs, PHRASE_SOLO, chEv.tick, last.tick - chEv.tick);
+                                WritePhrase(fs, BChartConsts.PHRASE_SOLO, chEv.tick, last.tick - chEv.tick);
                             }
                         }
                         else if (chEv.eventName == MidIOHelper.SoloEndEventText)
@@ -214,35 +212,26 @@ public static class BChartWriter
         }
     }
 
-    public const uint INSTRUMENT_GUITAR = 0;
-    public const uint INSTRUMENT_GUITAR_SIX = 1;
-    public const uint INSTRUMENT_BASS = 2;
-    public const uint INSTRUMENT_BASS_SIX = 3;
-    public const uint INSTRUMENT_RHYTHM = 4;
-    public const uint INSTRUMENT_COOP = 5;
-    public const uint INSTRUMENT_KEYS = 6;
-    public const uint INSTRUMENT_DRUMS = 7;
-    public const uint INSTRUMENT_VOCALS = 8;
-    public const uint INSTRUMENT_UKN = 0xFFFF;
 
     public static uint MoonInstrumentToOutput(Instrument instrument)
     {
         return instrument switch
         {
-            Instrument.Guitar => INSTRUMENT_GUITAR,
-            Instrument.GuitarCoop => INSTRUMENT_COOP,
-            Instrument.Bass => INSTRUMENT_BASS,
-            Instrument.Rhythm => INSTRUMENT_RHYTHM,
-            Instrument.Keys => INSTRUMENT_KEYS,
-            Instrument.Drums => INSTRUMENT_DRUMS,
-            Instrument.GHLiveGuitar => INSTRUMENT_GUITAR_SIX,
-            Instrument.GHLiveBass => INSTRUMENT_BASS_SIX,
-            _ => INSTRUMENT_UKN,
+            Instrument.Guitar => BChartConsts.INSTRUMENT_GUITAR,
+            Instrument.GuitarCoop => BChartConsts.INSTRUMENT_COOP,
+            Instrument.Bass => BChartConsts.INSTRUMENT_BASS,
+            Instrument.Rhythm => BChartConsts.INSTRUMENT_RHYTHM,
+            Instrument.Keys => BChartConsts.INSTRUMENT_KEYS,
+            Instrument.Drums => BChartConsts.INSTRUMENT_DRUMS,
+            Instrument.GHLiveGuitar => BChartConsts.INSTRUMENT_GUITAR_SIX,
+            Instrument.GHLiveBass => BChartConsts.INSTRUMENT_BASS_SIX,
+            _ => BChartConsts.INSTRUMENT_UKN,
         };
     }
 
     public static void WriteInstrument(FileStream fs, Instrument inst, Dictionary<Difficulty, Chart> diffs)
     {
+        fs.WriteUInt32LE(BChartConsts.InstrumentChunkName); // INST
         fs.WriteUInt32LE(MoonInstrumentToOutput(inst));
         fs.WriteUInt32LE((uint)diffs.Count);
         foreach (var data in diffs)
@@ -254,7 +243,7 @@ public static class BChartWriter
     public static void WriteTimeSignature(FileStream fs, TimeSignature ts)
     {
         fs.WriteUInt32LE(ts.tick);
-        fs.WriteByte(EVENT_TIME_SIG);
+        fs.WriteByte(BChartConsts.EVENT_TIME_SIG);
         fs.WriteUInt16LE(2);
         fs.WriteByte((byte)ts.numerator);
         fs.WriteByte((byte)ts.denominator);
@@ -265,13 +254,14 @@ public static class BChartWriter
     {
         uint microSecondsPerQuarter = (uint)(microsecondsPerMinute * 1000 / bpm.value);
         fs.WriteUInt32LE(bpm.tick);
-        fs.WriteByte(EVENT_TEMPO);
+        fs.WriteByte(BChartConsts.EVENT_TEMPO);
         fs.WriteUInt16LE(4);
         fs.WriteUInt32LE(microSecondsPerQuarter);
     }
 
     public static void WriteTempoMap(FileStream fs, IList<SyncTrack> tempoMap)
     {
+        fs.WriteUInt32LE(BChartConsts.TempoChunkName); // SYNC
         foreach (var tempo in tempoMap)
         {
             if (tempo is TimeSignature ts)
@@ -305,7 +295,6 @@ public static class BChartWriter
                             charts[inst] = new Dictionary<Difficulty, Chart>();
                         }
                         charts[inst][diff] = chart;
-                        Console.WriteLine(inst);
 
                     }
                 }
@@ -322,7 +311,7 @@ public static class BChartWriter
 
             foreach (var inst in charts)
             {
-                Console.WriteLine(inst.Key);
+                // Console.WriteLine($"Writing {inst.Key}");
                 WriteInstrument(fs, inst.Key, inst.Value);
             }
         }
