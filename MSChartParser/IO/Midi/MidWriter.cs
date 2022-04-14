@@ -715,8 +715,6 @@ namespace MoonscraperChartEditor.Song.IO
             int offset = 0;
             bytes.WriteInt16BE(ref offset, (short)(0xFF00 | (short)m_event)); // FF xx
             bytes.WriteSByte(ref offset, (sbyte)(header_text.Length));        // nn
-
-            offset += sizeof(sbyte);
             Array.Copy(header_text, 0, bytes, offset, header_text.Length);    // dd
 
             return bytes;
