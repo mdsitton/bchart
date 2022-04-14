@@ -3,6 +3,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using BChart;
 using MoonscraperChartEditor.Song;
 using MoonscraperChartEditor.Song.IO;
 

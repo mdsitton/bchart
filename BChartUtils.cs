@@ -1,6 +1,8 @@
 
 using System;
 
+namespace BChart;
+
 public static class BChartUtils
 {
     /// <summary>

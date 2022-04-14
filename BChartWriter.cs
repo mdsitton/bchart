@@ -9,9 +9,10 @@ using static MoonscraperChartEditor.Song.Song;
 using System.Text;
 using System.Buffers;
 
+namespace BChart;
+
 public static class BChartWriter
 {
-
     public static void WriteHeader(FileStream fs, uint instrumentCount, uint resolution)
     {
         // header

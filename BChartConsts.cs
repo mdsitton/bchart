@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+namespace BChart;
+
 public static class BChartConsts
 {
     public const byte EVENT_TEMPO = 0x01;
