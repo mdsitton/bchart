@@ -62,51 +62,58 @@ public static class BChartReader
     public static void ReadDifficulty(Span<byte> data, Song song, Instrument inst)
     {
         int pos = 0;
+        int eventCount = data.ReadInt32LE(ref pos);
         Difficulty diff = (Difficulty)data.ReadByte(ref pos);
         Console.WriteLine($"{inst} {diff}");
         var chart = song.GetChart(inst, diff);
-        for (int i = 0; i < 100; ++i)
+        for (int i = 0; i < eventCount; ++i)
         {
             uint tickPos = data.ReadUInt32LE(ref pos);
             byte eventType = data.ReadByte(ref pos);
             byte eventLength = data.ReadByte(ref pos);
 
             Span<byte> dataSpan = data.Slice(pos, eventLength);
-            eventLength += eventLength;
+            pos += eventLength;
 
             switch (eventType)
             {
                 case BChartConsts.EVENT_NOTE:
                     Note note = ReadNoteData(dataSpan, tickPos);
-                    chart.Add(note);
+                    chart.Add(note, false);
+                    // Console.WriteLine(note);
                     break;
-                case BChartConsts.PHRASE_STARPOWER:
+                case BChartConsts.EVENT_PHRASE:
                     {
+                        var type = dataSpan.ReadByte(0);
 
-                        uint length = ReadPhraseLength(dataSpan);
-                        chart.Add(new Starpower(tickPos, length));
-                        break;
-                    }
-                case BChartConsts.PHRASE_SOLO:
-                    {
-                        uint length = ReadPhraseLength(dataSpan);
-                        var start = new ChartEvent(tickPos, MidIOHelper.SoloEventText);
-                        var end = new ChartEvent(tickPos + length, MidIOHelper.SoloEndEventText);
-                        chart.Add(start);
-                        chart.Add(end);
+                        if (type == BChartConsts.PHRASE_STARPOWER)
+                        {
+
+                            uint length = ReadPhraseLength(dataSpan);
+                            chart.Add(new Starpower(tickPos, length), false);
+                        }
+                        else if (type == BChartConsts.PHRASE_SOLO)
+                        {
+
+                            uint length = ReadPhraseLength(dataSpan);
+                            var start = new ChartEvent(tickPos, MidIOHelper.SoloEventText);
+                            var end = new ChartEvent(tickPos + length, MidIOHelper.SoloEndEventText);
+                            chart.Add(start, false);
+                            chart.Add(end, false);
+                        }
                         break;
                     }
                 case BChartConsts.EVENT_TEXT:
                     string txt = ReadTextEventData(dataSpan);
-                    chart.Add(new ChartEvent(tickPos, txt));
+                    chart.Add(new ChartEvent(tickPos, txt), false);
                     break;
                 default:
                     // Skip any unknown event types
-                    pos += eventLength;
                     break;
             }
         }
         chart.UpdateCache();
+        Console.WriteLine(chart.note_count);
     }
 
     public static (Instrument inst, byte count) ReadInstrument(Span<byte> data)
@@ -118,7 +125,7 @@ public static class BChartReader
     private class BChartChunk
     {
         public uint ChunkID;
-        public byte[] data;
+        public ReadOnlyMemory<byte> data;
     }
 
     public static Song ReadBChart(string path)
@@ -128,57 +135,51 @@ public static class BChartReader
 
         MsceIOHelper.DiscoverAudio(directory, song);
 
-        var chunks = new List<BChartChunk>();
+        var chunks = new List<BChartChunk>(10);
 
-        using (FileStream fs = File.OpenRead(path))
-        {
-            while (true)
-            {
-                var chunkID = fs.ReadUInt32LE();
-                var chunkLength = fs.ReadInt32LE();
-                var bytes = new byte[chunkLength];
-                int i = fs.Read(bytes, 0, chunkLength);
-
-                var remain = fs.Length - fs.Position;
-                chunks.Add(new BChartChunk
-                {
-                    ChunkID = chunkID,
-                    data = bytes
-                });
-                if (remain == 0)
-                {
-                    break;
-                }
-            }
-
-        }
-
+        byte[] fileData = File.ReadAllBytes(path);
+        Span<byte> data = fileData;
+        int pos = 0;
         Instrument currentInstrument = Instrument.Unrecognised;
         byte diffs = 0;
 
-        foreach (var chunk in chunks)
+        while (pos < data.Length)
         {
-            if (chunk.ChunkID == BChartConsts.HeaderChunkName)
+            // Console.WriteLine(pos);
+            var chunkID = data.ReadUInt32LE(ref pos);
+            var chunkLength = data.ReadInt32LE(ref pos);
+            // Console.WriteLine(BChartUtils.GetChunkNameFromInt(chunkID));
+            // Console.WriteLine(chunkLength);
+            // Console.WriteLine(pos);
+            var chunkData = data.Slice(pos, chunkLength);
+            pos += chunkLength;
+            // Console.WriteLine(pos);
+
+            if (chunkID == BChartConsts.HeaderChunkName)
             {
 
             }
-            else if (chunk.ChunkID == BChartConsts.TempoChunkName)
+            else if (chunkID == BChartConsts.TempoChunkName)
             {
 
             }
-            else if (chunk.ChunkID == BChartConsts.GlobalEventsChunkName)
+            else if (chunkID == BChartConsts.GlobalEventsChunkName)
             {
 
             }
-            else if (chunk.ChunkID == BChartConsts.InstrumentChunkName)
+            else if (chunkID == BChartConsts.InstrumentChunkName)
             {
-                (currentInstrument, diffs) = ReadInstrument(chunk.data);
+                (currentInstrument, diffs) = ReadInstrument(chunkData);
             }
-            else if (chunk.ChunkID == BChartConsts.DifficultyChunkName)
+            else if (chunkID == BChartConsts.DifficultyChunkName)
             {
-                ReadDifficulty(chunk.data, song, currentInstrument);
+                ReadDifficulty(chunkData, song, currentInstrument);
             }
+
         }
+
+
+
 
 
         return song;

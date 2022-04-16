@@ -97,12 +97,22 @@ public static class BChartWriter
 
     public static void WriteNote(Stream stream, Note note)
     {
-        uint eventLength = 7; // Note event is atleast 7 bytes
+        uint eventLength = 6; // Note event is atleast 6 bytes
         byte modifierLength = 0;
 
-        if (note.forced || note.type == Note.NoteType.Tap ||
-            note.flags.HasFlag(Note.Flags.ProDrums_Accent) ||
-            note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
+        if (note.forced)
+        {
+            modifierLength++;
+        }
+        if (note.type == Note.NoteType.Tap)
+        {
+            modifierLength++;
+        }
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
+        {
+            modifierLength++;
+        }
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
         {
             modifierLength++;
         }
@@ -141,15 +151,20 @@ public static class BChartWriter
         // }
     }
 
-    public static void WriteChunk(Stream stream, uint chunkId, Action<Stream> action)
+    public static void WriteChunk(Stream stream, uint chunkId, Action<Stream> action, Action<Stream> preAction = null)
     {
         // serialize chunk data to memory stream 
         using (var ms = new MemoryStream())
         {
             action?.Invoke(ms);
-            stream.WriteUInt32LE(chunkId);
-            stream.WriteInt32LE((int)ms.Length);
-            stream.Write(ms.GetBuffer(), 0, (int)ms.Length);
+            using (var ms2 = new MemoryStream())
+            {
+                preAction?.Invoke(ms2);
+                stream.WriteUInt32LE(chunkId);
+                stream.WriteInt32LE((int)(ms.Length + ms2.Length));
+                stream.Write(ms2.GetBuffer(), 0, (int)ms2.Length);
+                stream.Write(ms.GetBuffer(), 0, (int)ms.Length);
+            }
         }
     }
 
@@ -168,43 +183,60 @@ public static class BChartWriter
 
     public static void WriteTempoMap(Stream stream, IList<SyncTrack> tempoMap)
     {
+        int savedEvents = 0;
         void WriteData(Stream stre)
         {
             foreach (var tempo in tempoMap)
             {
                 if (tempo is TimeSignature ts)
                 {
+                    savedEvents++;
                     WriteTimeSignature(stre, ts);
                 }
                 else if (tempo is BPM bpm)
                 {
+                    savedEvents++;
                     WriteTempo(stre, bpm);
                 }
             }
         }
 
-        WriteChunk(stream, BChartConsts.TempoChunkName, WriteData); // SYNC
+        void PreDataWrite(Stream stre)
+        {
+            // write this to the outstream directly before the data gets written
+            stre.WriteInt32LE(savedEvents);
+        }
+
+        WriteChunk(stream, BChartConsts.TempoChunkName, WriteData, PreDataWrite); // SYNC
 
     }
 
     public static void WriteGlobalEvents(Stream stream, IList<Event> events)
     {
+        int savedEvents = 0;
         void WriteData(Stream stre)
         {
             foreach (var ev in events)
             {
                 if (ev is Section section)
                 {
+                    savedEvents++;
                     WriteSection(stre, section);
                 }
                 else
                 {
+                    savedEvents++;
                     WriteTextEvent(stre, ev);
                 }
             }
         }
 
-        WriteChunk(stream, BChartConsts.GlobalEventsChunkName, WriteData); // EVTS
+        void PreDataWrite(Stream stre)
+        {
+            // write this to the outstream directly before the data gets written
+            stre.WriteInt32LE(savedEvents);
+        }
+        WriteChunk(stream, BChartConsts.GlobalEventsChunkName, WriteData, PreDataWrite); // EVTS
 
     }
 
@@ -225,6 +257,7 @@ public static class BChartWriter
 
     public static void WriteDifficulty(Stream stream, Difficulty diff, Chart chart)
     {
+        int savedEvents = 0;
         void WriteData(Stream stre)
         {
             stre.WriteByte((byte)diff);
@@ -235,9 +268,11 @@ public static class BChartWriter
                 switch (ev)
                 {
                     case Note note:
+                        savedEvents++;
                         WriteNote(stre, note);
                         break;
                     case Starpower sp:
+                        savedEvents++;
                         WritePhrase(stre, BChartConsts.PHRASE_SOLO, sp.tick, sp.length);
                         break;
                     case ChartEvent chEv:
@@ -253,6 +288,7 @@ public static class BChartWriter
                                         if (chNext.eventName == MidIOHelper.SoloEndEventText)
                                         {
                                             foundMatch = true;
+                                            savedEvents++;
                                             WritePhrase(stre, BChartConsts.PHRASE_SOLO, chEv.tick, chNext.tick - chEv.tick);
                                             break;
                                         }
@@ -260,6 +296,7 @@ public static class BChartWriter
                                 }
                                 if (!foundMatch)
                                 {
+                                    savedEvents++;
                                     // Make length match until the last chart event
                                     var last = chart.chartObjects[chart.chartObjects.Count - 1];
                                     WritePhrase(stre, BChartConsts.PHRASE_SOLO, chEv.tick, last.tick - chEv.tick);
@@ -271,6 +308,7 @@ public static class BChartWriter
                             }
                             else
                             {
+                                savedEvents++;
                                 WriteTextEvent(stre, chEv);
                             }
                         }
@@ -278,7 +316,12 @@ public static class BChartWriter
                 }
             }
         }
-        WriteChunk(stream, BChartConsts.DifficultyChunkName, WriteData); // DIFF
+        void PreDataWrite(Stream stre)
+        {
+            // write this to the outstream directly before the data gets written
+            stre.WriteInt32LE(savedEvents);
+        }
+        WriteChunk(stream, BChartConsts.DifficultyChunkName, WriteData, PreDataWrite); // DIFF
     }
 
     /// <summary>
