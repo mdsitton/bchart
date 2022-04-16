@@ -112,7 +112,7 @@ public static class BChartWriter
         stream.WriteUInt32LE(note.tick);
         stream.WriteByte(BChartConsts.EVENT_NOTE);
         stream.WriteByte(byteLength);
-        stream.WriteUInt16LE((ushort)note.rawNote);
+        stream.WriteByte((byte)note.rawNote);
         stream.WriteUInt32LE(note.length);
         stream.WriteByte(modifierLength);
 
@@ -148,7 +148,7 @@ public static class BChartWriter
         {
             action?.Invoke(ms);
             stream.WriteUInt32LE(chunkId);
-            stream.WriteUInt32LE((uint)ms.Length);
+            stream.WriteInt32LE((int)ms.Length);
             stream.Write(ms.GetBuffer(), 0, (int)ms.Length);
         }
     }
@@ -160,7 +160,7 @@ public static class BChartWriter
         // header
         const int headerLength = 6;
         stream.WriteUInt32LE(BChartConsts.HeaderChunkName); // BCHF
-        stream.WriteUInt32LE(headerLength);
+        stream.WriteInt32LE(headerLength);
         stream.WriteUInt16LE(1); // version 1
         stream.WriteUInt16LE((ushort)resolution);
         stream.WriteUInt16LE((ushort)instrumentCount);
@@ -213,7 +213,7 @@ public static class BChartWriter
         void WriteData(Stream stre)
         {
             stre.WriteUInt32LE(BChartUtils.MoonInstrumentToBChart(inst));
-            stre.WriteUInt32LE((uint)diffs.Count);
+            stre.WriteByte((byte)diffs.Count);
             // TODO per instrument events track?
         }
         WriteChunk(stream, BChartConsts.InstrumentChunkName, WriteData); // INST
@@ -227,6 +227,7 @@ public static class BChartWriter
     {
         void WriteData(Stream stre)
         {
+            stream.WriteByte((byte)diff);
             int i = 0;
             foreach (var ev in chart.chartObjects)
             {

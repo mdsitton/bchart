@@ -17,33 +17,33 @@ bchart format:
                 [0x5] [7+noteModifiersLength] [byte noteNumber] [uint32 tickLength] [byte noteModifiersLength] [byte noteModifier1] [byte noteModifier2] [byte noteModifierX]
     header:
         uint32/byte[4] - BCHF 0x46484342 / 0x42 0x43 0x48 0x46
-        uint32 - byteLength
+        int32 - byteLength
         uint16 - Version number
         uint16 - Resolution
         uint16 - instrumentCount
 
     tempoMap:
         uint32/byte[4] - SYNC 0x4F504D54 / 0x54 0x4D 0x50 0x4F
-        uint32 - byteLength
+        int32 - byteLength
         [TimeSig 0x2]
         [Tempo 0x01]
 
     GlobalEvents:
         uint32/byte[4] - EVTS 0x424F4C47 / 0x47 0x4C 0x4F 0x42
-        uint32 - byteLength
+        int32 - byteLength
         [Section 0x4]
         [TextEvent 0x3]
 
     Instrument:
         uint32/byte[4] - INST 0x54534E49 / 0x49 0x4E 0x53 0x54
-        uint32 - byteLength
+        int32 - byteLength
         uint32 instrumentID
-        uint32 diffCount
+        byte diffCount
         InstrumentDiffEvents
 
     InstrumentDiffEvents:
         uint32/byte[4] - DIFF 0x54534E49 / 0x49 0x4E 0x53 0x54
-        uint32 - byteLength
+        int32 - byteLength
         difficultyID
         [uint32 tickPos] [uint32 eventByteLength] [event data]
 
