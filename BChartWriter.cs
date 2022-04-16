@@ -227,7 +227,7 @@ public static class BChartWriter
     {
         void WriteData(Stream stre)
         {
-            stream.WriteByte((byte)diff);
+            stre.WriteByte((byte)diff);
             int i = 0;
             foreach (var ev in chart.chartObjects)
             {
