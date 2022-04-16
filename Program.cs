@@ -52,5 +52,8 @@ public static class Program
         sw.Stop();
         Console.WriteLine($"bch: Save took {sw.Elapsed.Milliseconds} ms");
         sw.Restart();
+        var newSong = BChartReader.ReadBChart(outputFile);
+        sw.Stop();
+        Console.WriteLine($"bch: Load took {sw.Elapsed.Milliseconds} ms");
     }
 }

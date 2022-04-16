@@ -1,6 +1,7 @@
 
 using System;
 using System.Buffers;
+using System.Collections.Generic;
 using System.Text;
 using static MoonscraperChartEditor.Song.Song;
 
@@ -26,6 +27,20 @@ public static class BChartUtils
             val |= text;
         }
         return val;
+    }
+
+    public static string GetChunkNameFromInt(uint val)
+    {
+
+        List<byte> data = new List<byte>();
+
+        for (int i = 0; i < 4; ++i)
+        {
+            byte text = (byte)(val & 0xFF);
+            data.Add(text);
+            val >>= 8;
+        }
+        return Encoding.ASCII.GetString(data.ToArray()); ;
     }
 
     /// <summary>
