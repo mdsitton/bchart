@@ -23,14 +23,14 @@ bchart format:
         uint16 - instrumentCount
 
     tempoMap:
-        uint32/byte[4] - SYNC 0x4F504D54 / 0x54 0x4D 0x50 0x4F
+        uint32/byte[4] - SYNC 0x434E5953 / 0x53 0x59 0x4E 0x43
         int32 - byteLength
         int32 - eventCount
         [TimeSig 0x2]
         [Tempo 0x01]
 
     GlobalEvents:
-        uint32/byte[4] - EVTS 0x424F4C47 / 0x47 0x4C 0x4F 0x42
+        uint32/byte[4] - EVTS 0x53545645 / 0x45 0x56 0x54 0x53
         int32 - byteLength
         int32 - eventCount
         [Section 0x4]
@@ -44,7 +44,7 @@ bchart format:
         InstrumentDiffEvents
 
     InstrumentDiffEvents:
-        uint32/byte[4] - DIFF 0x54534E49 / 0x49 0x4E 0x53 0x54
+        uint32/byte[4] - DIFF 0x46464944 / 0x44 0x49 0x46 0x46
         int32 - byteLength
         int32 - eventCount
         difficultyID
