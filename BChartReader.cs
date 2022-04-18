@@ -59,6 +59,96 @@ public static class BChartReader
         return note;
     }
 
+    public static BPM ReadTempoData(Span<byte> data, uint tickPos)
+    {
+        return new BPM(tickPos, (uint)(60000000000.0 / data.ReadUInt32LE(0)));
+    }
+
+    public static TimeSignature ReadTSData(Span<byte> data, uint tickPos)
+    {
+        int pos = 0;
+        var num = data.ReadUInt32LE(ref pos);
+        var den = data.ReadUInt32LE(ref pos);
+
+        return new TimeSignature(tickPos, num, den);
+    }
+
+
+    public static (uint tickPos, byte eventType) ReadEventBytes(Span<byte> data, ref int pos, out Span<byte> eventSpanOut)
+    {
+        uint tickPos = data.ReadUInt32LE(ref pos);
+        byte eventType = data.ReadByte(ref pos);
+        byte eventLength = data.ReadByte(ref pos);
+
+        eventSpanOut = data.Slice(pos, eventLength);
+        pos += eventLength;
+        return (tickPos, eventType);
+    }
+
+    public static (uint version, uint instrumentCount) ReadHeader(Span<byte> data, Song song)
+    {
+        int pos = 0;
+
+        uint version = data.ReadUInt16LE(ref pos);
+        uint resolution = data.ReadUInt16LE(ref pos);
+        uint instrumentCount = data.ReadUInt16LE(ref pos);
+
+        song.resolution = resolution;
+
+        return (version, instrumentCount);
+    }
+
+    public static void ReadTempoMap(Span<byte> data, Song song)
+    {
+        int pos = 0;
+        uint eventCount = data.ReadUInt32LE(ref pos);
+        for (int i = 0; i < eventCount; ++i)
+        {
+
+            (uint tickPos, byte eventType) = ReadEventBytes(data, ref pos, out Span<byte> dataSpan);
+
+            switch (eventType)
+            {
+                case BChartConsts.EVENT_TEMPO:
+                    song.Add(ReadTempoData(dataSpan, tickPos), false);
+                    break;
+                case BChartConsts.EVENT_TIME_SIG:
+                    song.Add(ReadTSData(dataSpan, tickPos), false);
+                    break;
+            }
+        }
+        song.UpdateCache();
+    }
+
+    public static void ReadGlobalEvents(Span<byte> data, Song song)
+    {
+        int pos = 0;
+        uint eventCount = data.ReadUInt32LE(ref pos);
+        for (int i = 0; i < eventCount; ++i)
+        {
+
+            (uint tickPos, byte eventType) = ReadEventBytes(data, ref pos, out Span<byte> dataSpan);
+
+            switch (eventType)
+            {
+                case BChartConsts.EVENT_SECTION:
+                    {
+
+                        string txt = ReadTextEventData(dataSpan);
+                        song.Add(new Section(txt, tickPos), false);
+                        break;
+                    }
+                case BChartConsts.EVENT_TEXT:
+                    {
+                        string txt = ReadTextEventData(dataSpan);
+                        song.Add(new Event(txt, tickPos), false);
+                        break;
+                    }
+            }
+        }
+        song.UpdateCache();
+    }
+
     public static void ReadDifficulty(Span<byte> data, Song song, Instrument inst)
     {
         int pos = 0;
@@ -68,19 +158,13 @@ public static class BChartReader
         var chart = song.GetChart(inst, diff);
         for (int i = 0; i < eventCount; ++i)
         {
-            uint tickPos = data.ReadUInt32LE(ref pos);
-            byte eventType = data.ReadByte(ref pos);
-            byte eventLength = data.ReadByte(ref pos);
-
-            Span<byte> dataSpan = data.Slice(pos, eventLength);
-            pos += eventLength;
+            (uint tickPos, byte eventType) = ReadEventBytes(data, ref pos, out Span<byte> dataSpan);
 
             switch (eventType)
             {
                 case BChartConsts.EVENT_NOTE:
                     Note note = ReadNoteData(dataSpan, tickPos);
                     chart.Add(note, false);
-                    // Console.WriteLine(note);
                     break;
                 case BChartConsts.EVENT_PHRASE:
                     {
@@ -122,12 +206,6 @@ public static class BChartReader
         return ((Instrument)data.ReadUInt32LE(ref pos), data.ReadByte(ref pos));
     }
 
-    private class BChartChunk
-    {
-        public uint ChunkID;
-        public ReadOnlyMemory<byte> data;
-    }
-
     public static Song ReadBChart(string path)
     {
         Song song = new Song();
@@ -135,41 +213,38 @@ public static class BChartReader
 
         MsceIOHelper.DiscoverAudio(directory, song);
 
-        var chunks = new List<BChartChunk>(10);
-
         byte[] fileData = File.ReadAllBytes(path);
         Span<byte> data = fileData;
         int pos = 0;
         Instrument currentInstrument = Instrument.Unrecognised;
-        byte diffs = 0;
+        byte diffCount = 0;
+
+        uint version;
+        uint instrumentCount;
 
         while (pos < data.Length)
         {
             // Console.WriteLine(pos);
             var chunkID = data.ReadUInt32LE(ref pos);
             var chunkLength = data.ReadInt32LE(ref pos);
-            // Console.WriteLine(BChartUtils.GetChunkNameFromInt(chunkID));
-            // Console.WriteLine(chunkLength);
-            // Console.WriteLine(pos);
             var chunkData = data.Slice(pos, chunkLength);
             pos += chunkLength;
-            // Console.WriteLine(pos);
 
             if (chunkID == BChartConsts.HeaderChunkName)
             {
-
+                (version, instrumentCount) = ReadHeader(chunkData, song);
             }
             else if (chunkID == BChartConsts.TempoChunkName)
             {
-
+                ReadTempoMap(chunkData, song);
             }
             else if (chunkID == BChartConsts.GlobalEventsChunkName)
             {
-
+                ReadGlobalEvents(chunkData, song);
             }
             else if (chunkID == BChartConsts.InstrumentChunkName)
             {
-                (currentInstrument, diffs) = ReadInstrument(chunkData);
+                (currentInstrument, diffCount) = ReadInstrument(chunkData);
             }
             else if (chunkID == BChartConsts.DifficultyChunkName)
             {
@@ -177,10 +252,6 @@ public static class BChartReader
             }
 
         }
-
-
-
-
 
         return song;
     }

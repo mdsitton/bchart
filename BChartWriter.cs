@@ -94,7 +94,6 @@ public static class BChartWriter
         stream.WriteUInt32LE(microSecondsPerQuarter);
     }
 
-
     public static void WriteNote(Stream stream, Note note)
     {
         uint eventLength = 6; // Note event is atleast 6 bytes
