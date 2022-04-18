@@ -25,7 +25,7 @@ public static class BChartConsts
     public const byte DIFFICULTY_EASY = 0x00;
     public const byte DIFFICULTY_MEDIUM = 0x01;
     public const byte DIFFICULTY_HARD = 0x02;
-    public const byte DIFFICULTY_EXPERT = 0x02;
+    public const byte DIFFICULTY_EXPERT = 0x03;
 
     public const uint INSTRUMENT_GUITAR = 0;
     public const uint INSTRUMENT_GUITAR_SIX = 1;
