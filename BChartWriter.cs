@@ -144,6 +144,7 @@ public static class BChartWriter
         {
             stream.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
         }
+        // TODO - Drum tom/cymbal markers
         // if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
         // {
         //     fs.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
@@ -168,7 +169,6 @@ public static class BChartWriter
     }
 
     // Chunk serialization functions
-
     public static void WriteHeader(Stream stream, uint instrumentCount, uint resolution)
     {
         // header

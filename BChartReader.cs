@@ -67,8 +67,8 @@ public static class BChartReader
     public static TimeSignature ReadTSData(Span<byte> data, uint tickPos)
     {
         int pos = 0;
-        var num = data.ReadUInt32LE(ref pos);
-        var den = data.ReadUInt32LE(ref pos);
+        var num = data.ReadByte(ref pos);
+        var den = data.ReadByte(ref pos);
 
         return new TimeSignature(tickPos, num, den);
     }
