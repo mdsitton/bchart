@@ -272,7 +272,7 @@ public static class BChartWriter
                         break;
                     case Starpower sp:
                         savedEvents++;
-                        WritePhrase(stre, BChartConsts.PHRASE_SOLO, sp.tick, sp.length);
+                        WritePhrase(stre, BChartConsts.PHRASE_STARPOWER, sp.tick, sp.length);
                         break;
                     case ChartEvent chEv:
                         {
