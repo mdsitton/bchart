@@ -94,7 +94,7 @@ public static class BChartWriter
         stream.WriteUInt32LE(microSecondsPerQuarter);
     }
 
-    public static void WriteNote(Stream stream, Note note)
+    public static bool WriteNote(Stream stream, Note note, Instrument inst)
     {
         uint eventLength = 6; // Note event is atleast 6 bytes
         byte modifierLength = 0;
@@ -115,13 +115,29 @@ public static class BChartWriter
         {
             modifierLength++;
         }
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
+        {
+            modifierLength++;
+        }
+        if (note.flags.HasFlag(Note.Flags.DoubleKick))
+        {
+            modifierLength++;
+        }
+
+        byte noteOut = BChartUtils.MoonNoteToBChart(inst, note);
+
+        // don't write out unknown note
+        if (noteOut == BChartConsts.NOTE_UKN)
+        {
+            return false;
+        }
 
         byte byteLength = (byte)(eventLength + modifierLength);
 
         stream.WriteUInt32LE(note.tick);
         stream.WriteByte(BChartConsts.EVENT_NOTE);
         stream.WriteByte(byteLength);
-        stream.WriteByte((byte)note.rawNote);
+        stream.WriteByte(noteOut);
         stream.WriteUInt32LE(note.length);
         stream.WriteByte(modifierLength);
 
@@ -135,6 +151,16 @@ public static class BChartWriter
             stream.WriteByte(BChartConsts.MODIFIER_TAP);
         }
 
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
+        {
+            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_CYMBAL);
+        }
+
+        if (note.flags.HasFlag(Note.Flags.DoubleKick))
+        {
+            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_KICK_2);
+        }
+
         if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
         {
             stream.WriteByte(BChartConsts.MODIFIER_DRUMS_ACCENT);
@@ -144,11 +170,7 @@ public static class BChartWriter
         {
             stream.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
         }
-        // TODO - Drum tom/cymbal markers
-        // if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
-        // {
-        //     fs.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
-        // }
+        return true;
     }
 
     public static void WriteChunk(Stream stream, uint chunkId, Action<Stream> action, Action<Stream> preAction = null)
@@ -250,11 +272,11 @@ public static class BChartWriter
         WriteChunk(stream, BChartConsts.InstrumentChunkName, WriteData); // INST
         foreach (var data in diffs)
         {
-            WriteDifficulty(stream, data.Key, data.Value);
+            WriteDifficulty(stream, inst, data.Key, data.Value);
         }
     }
 
-    public static void WriteDifficulty(Stream stream, Difficulty diff, Chart chart)
+    public static void WriteDifficulty(Stream stream, Instrument inst, Difficulty diff, Chart chart)
     {
         int savedEvents = 0;
         void WriteData(Stream stre)
@@ -267,8 +289,10 @@ public static class BChartWriter
                 switch (ev)
                 {
                     case Note note:
-                        savedEvents++;
-                        WriteNote(stre, note);
+                        if (WriteNote(stre, note, inst))
+                        {
+                            savedEvents++;
+                        }
                         break;
                     case Starpower sp:
                         savedEvents++;

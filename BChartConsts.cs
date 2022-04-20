@@ -16,16 +16,52 @@ public static class BChartConsts
 
     public const byte PHRASE_STARPOWER = 0x01;
     public const byte PHRASE_SOLO = 0x02;
+    public const byte PHRASE_LYRICS_LINE = 0x03;
 
     public const byte MODIFIER_FORCED = 0x01;
     public const byte MODIFIER_TAP = 0x02;
     public const byte MODIFIER_DRUMS_ACCENT = 0x03;
     public const byte MODIFIER_DRUMS_GHOST = 0x04;
+    public const byte MODIFIER_DRUMS_CYMBAL = 0x05;
+    public const byte MODIFIER_DRUMS_KICK_2 = 0x06;
 
     public const byte DIFFICULTY_EASY = 0x00;
     public const byte DIFFICULTY_MEDIUM = 0x01;
     public const byte DIFFICULTY_HARD = 0x02;
     public const byte DIFFICULTY_EXPERT = 0x03;
+
+    public const byte NOTE_UKN = 0xFF;
+
+    public static class GuitarNotes
+    {
+        public const byte NOTE_OPEN = 0x00;
+        public const byte NOTE_GREEN = 0x01;
+        public const byte NOTE_RED = 0x02;
+        public const byte NOTE_YELLOW = 0x03;
+        public const byte NOTE_BLUE = 0x04;
+        public const byte NOTE_ORANGE = 0x05;
+    }
+
+    public static class SixFretGuitarNotes
+    {
+        public const byte NOTE_OPEN = 0x00;
+        public const byte NOTE_B1 = 0x01;
+        public const byte NOTE_B2 = 0x02;
+        public const byte NOTE_B3 = 0x03;
+        public const byte NOTE_W1 = 0x04;
+        public const byte NOTE_W2 = 0x05;
+        public const byte NOTE_W3 = 0x06;
+    }
+
+    public static class DrumNotes
+    {
+        public const byte NOTE_KICK = 0x00;
+        public const byte NOTE_RED = 0x01;
+        public const byte NOTE_YELLOW = 0x02;
+        public const byte NOTE_BLUE = 0x03;
+        public const byte NOTE_GREEN = 0x04;
+        public const byte NOTE_FIVE_LANE_GREEN = 0x05;
+    }
 
     public const uint INSTRUMENT_GUITAR = 0;
     public const uint INSTRUMENT_GUITAR_SIX = 1;

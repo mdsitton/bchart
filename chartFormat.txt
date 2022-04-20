@@ -51,6 +51,70 @@ bchart format:
         [uint32 tickPos] [uint32 eventByteLength] [event data]
 
 
+Instrument Note IDs:
+    drums:
+        Kick: 0x00
+        Red: 0x01
+        Yellow: 0x02
+        Blue: 0x03
+        Green: 0x04
+        FiveLaneGreen: 0x05
+    
+    5-fret:
+        Open: 0x00
+        Green: 0x01
+        Red: 0x02
+        Yellow: 0x03
+        Blue: 0x04
+        Orange: 0x05
+
+    6-fret:
+        Open: 0x00
+        B1: 0x01
+        B2: 0x02
+        B3: 0x03
+        W1: 0x04
+        W2: 0x05
+        W3: 0x06
+
+Modifiers:
+    FORCED: 0x01
+    TAP: 0x02
+    DRUMS_ACCENT: 0x03
+    DRUMS_GHOST: 0x04
+    DRUMS_CYMBAL: 0x05
+    DRUMS_KICK_2: 0x06
+
+Difficulties:
+    EASY: 0x00
+    MEDIUM: 0x01
+    HARD: 0x02
+    EXPERT: 0x03
+
+Phrases:
+    STARPOWER: 0x01
+    SOLO: 0x02
+    LYRICS_LINE: 0x03
+
+Events:
+    TEMPO: 0x01
+    TIME_SIG: 0x02
+    TEXT: 0x03
+    SECTION: 0x04
+    PHRASE: 0x05
+    NOTE: 0x06
+
+Instruments:
+    GUITAR: 0
+    GUITAR_SIX: 1
+    BASS: 2
+    BASS_SIX: 3
+    RHYTHM: 4
+    COOP: 5
+    KEYS: 6
+    DRUMS: 7
+    VOCALS: 8
+
 Other considerations:
     Animation data, venue, characters, camera
     Modchart events

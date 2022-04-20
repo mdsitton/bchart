@@ -22,7 +22,7 @@ public static class BChartReader
         return data.ReadUInt32LE(0);
     }
 
-    public static Note ReadNoteData(Span<byte> data, uint tick)
+    public static Note ReadNoteData(Span<byte> data, Instrument inst, uint tick)
     {
         int pos = 0;
         byte noteValue = data.ReadByte(ref pos);
@@ -34,7 +34,7 @@ public static class BChartReader
             modifierCount = (byte)(data.Length - pos);
         }
 
-        Note note = new Note(tick, noteValue, tickLength);
+        Note note = new Note(tick, BChartUtils.BChartToMoonNote(inst, noteValue), tickLength);
 
         for (int i = 0; i < modifierCount; ++i)
         {
@@ -53,6 +53,12 @@ public static class BChartReader
                     break;
                 case BChartConsts.MODIFIER_DRUMS_GHOST:
                     note.flags |= Note.Flags.ProDrums_Ghost;
+                    break;
+                case BChartConsts.MODIFIER_DRUMS_KICK_2:
+                    note.flags |= Note.Flags.DoubleKick;
+                    break;
+                case BChartConsts.MODIFIER_DRUMS_CYMBAL:
+                    note.flags |= Note.Flags.ProDrums_Cymbal;
                     break;
             }
         }
@@ -154,16 +160,29 @@ public static class BChartReader
         int pos = 0;
         int eventCount = data.ReadInt32LE(ref pos);
         Difficulty diff = (Difficulty)data.ReadByte(ref pos);
+        List<ChartEvent> soloEndEvents = new List<ChartEvent>();
         Console.WriteLine($"{inst} {diff}");
         var chart = song.GetChart(inst, diff);
         for (int i = 0; i < eventCount; ++i)
         {
             (uint tickPos, byte eventType) = ReadEventBytes(data, ref pos, out Span<byte> dataSpan);
 
+
+            for (int j = 0; j < soloEndEvents.Count; ++j)
+            {
+                var end = soloEndEvents[j];
+                if (tickPos > end.tick)
+                {
+                    chart.Add(end, false);
+                    soloEndEvents.RemoveAt(j);
+                    j--;
+                }
+            }
+
             switch (eventType)
             {
                 case BChartConsts.EVENT_NOTE:
-                    Note note = ReadNoteData(dataSpan, tickPos);
+                    Note note = ReadNoteData(dataSpan, inst, tickPos);
                     chart.Add(note, false);
                     break;
                 case BChartConsts.EVENT_PHRASE:
@@ -178,12 +197,12 @@ public static class BChartReader
                         }
                         else if (type == BChartConsts.PHRASE_SOLO)
                         {
-
                             uint length = ReadPhraseLength(dataSpan);
                             var start = new ChartEvent(tickPos, MidIOHelper.SoloEventText);
                             var end = new ChartEvent(tickPos + length, MidIOHelper.SoloEndEventText);
+                            soloEndEvents.Add(end);
                             chart.Add(start, false);
-                            chart.Add(end, false);
+                            // chart.Add(end, false);
                         }
                         break;
                     }
@@ -197,7 +216,6 @@ public static class BChartReader
             }
         }
         chart.UpdateCache();
-        Console.WriteLine(chart.note_count);
     }
 
     public static (Instrument inst, byte count) ReadInstrument(Span<byte> data)
@@ -210,7 +228,6 @@ public static class BChartReader
     {
         Song song = new Song();
         string directory = Path.GetDirectoryName(path);
-
         MsceIOHelper.DiscoverAudio(directory, song);
 
         byte[] fileData = File.ReadAllBytes(path);
