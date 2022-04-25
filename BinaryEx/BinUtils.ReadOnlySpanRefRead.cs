@@ -1,5 +1,5 @@
 // Copyright (c) 2019-2022 Matthew Sitton <matthewsitton@gmail.com>
-// MIT License - See LICENSE in the project root for license information.
+// BSD License - See LICENSE in the project root for license information.
 using System;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
