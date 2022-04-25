@@ -96,33 +96,10 @@ public static class BChartWriter
 
     public static bool WriteNote(Stream stream, Note note, Instrument inst)
     {
-        uint eventLength = 6; // Note event is atleast 6 bytes
-        byte modifierLength = 0;
+        uint eventLength = 5; // Note event is atleast 6 bytes
+        uint supplementalDataLength = 4; // Note modifiers supplemental data is 4 bytes
 
-        if (note.forced)
-        {
-            modifierLength++;
-        }
-        if (note.type == Note.NoteType.Tap)
-        {
-            modifierLength++;
-        }
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
-        {
-            modifierLength++;
-        }
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
-        {
-            modifierLength++;
-        }
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
-        {
-            modifierLength++;
-        }
-        if (note.flags.HasFlag(Note.Flags.DoubleKick))
-        {
-            modifierLength++;
-        }
+        uint modifiers = BChartUtils.MoonNoteToBChartMod(inst, note);
 
         byte noteOut = BChartUtils.MoonNoteToBChart(inst, note);
 
@@ -132,43 +109,25 @@ public static class BChartWriter
             return false;
         }
 
-        byte byteLength = (byte)(eventLength + modifierLength);
+        byte byteLength = (byte)eventLength;
+
+        if (modifiers > 0)
+        {
+            byteLength++;
+            byteLength += (byte)supplementalDataLength;
+        }
 
         stream.WriteUInt32LE(note.tick);
         stream.WriteByte(BChartConsts.EVENT_NOTE);
         stream.WriteByte(byteLength);
         stream.WriteByte(noteOut);
         stream.WriteUInt32LE(note.length);
-        stream.WriteByte(modifierLength);
 
-        if (note.forced)
+        if (modifiers > 0)
         {
-            stream.WriteByte(BChartConsts.MODIFIER_FORCED);
-        }
-
-        if (note.type == Note.NoteType.Tap)
-        {
-            stream.WriteByte(BChartConsts.MODIFIER_TAP);
-        }
-
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
-        {
-            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_CYMBAL);
-        }
-
-        if (note.flags.HasFlag(Note.Flags.DoubleKick))
-        {
-            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_KICK_2);
-        }
-
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
-        {
-            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_ACCENT);
-        }
-
-        if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
-        {
-            stream.WriteByte(BChartConsts.MODIFIER_DRUMS_GHOST);
+            // Note supplemental data section byte length
+            stream.WriteByte((byte)supplementalDataLength);
+            stream.WriteUInt32LE(modifiers);
         }
         return true;
     }

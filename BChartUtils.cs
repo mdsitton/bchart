@@ -266,4 +266,145 @@ public static class BChartUtils
                 return (int)BChartToMoonGuitar(note);
         };
     }
+
+    private static uint SixFretNoteToMod(Note note)
+    {
+        uint modifiers = 0;
+        if (note.forced)
+        {
+            modifiers |= BChartConsts.SixFretGuitarNotes.NOTE_MOD_FORCE_STRUM;
+        }
+        if (note.type == Note.NoteType.Tap)
+        {
+            modifiers |= BChartConsts.SixFretGuitarNotes.NOTE_MOD_TAP;
+        }
+        return modifiers;
+    }
+
+    private static uint GuitarNoteToMod(Note note)
+    {
+        uint modifiers = 0;
+        if (note.forced)
+        {
+            modifiers |= BChartConsts.GuitarNotes.NOTE_MOD_FORCE_STRUM;
+        }
+        if (note.type == Note.NoteType.Tap)
+        {
+            modifiers |= BChartConsts.GuitarNotes.NOTE_MOD_TAP;
+        }
+        return modifiers;
+    }
+
+    private static uint DrumNoteToMod(Note note)
+    {
+        uint modifiers = 0;
+
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Accent))
+        {
+            modifiers |= BChartConsts.DrumNotes.NOTE_MOD_ACCENT;
+        }
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Ghost))
+        {
+            modifiers |= BChartConsts.DrumNotes.NOTE_MOD_GHOST;
+        }
+        if (note.flags.HasFlag(Note.Flags.ProDrums_Cymbal))
+        {
+            modifiers |= BChartConsts.DrumNotes.NOTE_MOD_CYMBAL;
+        }
+        if (note.flags.HasFlag(Note.Flags.DoubleKick))
+        {
+            modifiers |= BChartConsts.DrumNotes.NOTE_MOD_KICK_2;
+        }
+        return modifiers;
+    }
+
+    public static uint MoonNoteToBChartMod(Instrument instrument, Note note)
+    {
+        switch (instrument)
+        {
+            case Instrument.Guitar:
+            case Instrument.GuitarCoop:
+            case Instrument.Bass:
+            case Instrument.Rhythm:
+            case Instrument.Keys:
+                return GuitarNoteToMod(note);
+            case Instrument.Drums:
+                return DrumNoteToMod(note);
+            case Instrument.GHLiveGuitar:
+            case Instrument.GHLiveBass:
+                return SixFretNoteToMod(note);
+            default:
+                return GuitarNoteToMod(note);
+        };
+    }
+
+
+    private static void ModToSixFretNote(Note note, uint modifiers)
+    {
+        if ((modifiers & BChartConsts.SixFretGuitarNotes.NOTE_MOD_FORCE_STRUM) != 0)
+        {
+            note.flags &= Note.Flags.Forced;
+        }
+        if ((modifiers & BChartConsts.SixFretGuitarNotes.NOTE_MOD_TAP) != 0)
+        {
+            note.flags &= Note.Flags.Tap;
+        }
+    }
+
+    private static void ModToGuitarNote(Note note, uint modifiers)
+    {
+        if ((modifiers & BChartConsts.GuitarNotes.NOTE_MOD_FORCE_STRUM) != 0)
+        {
+            note.flags &= Note.Flags.Forced;
+        }
+        if ((modifiers & BChartConsts.GuitarNotes.NOTE_MOD_TAP) != 0)
+        {
+            note.flags &= Note.Flags.Tap;
+        }
+    }
+
+    private static void ModToDrumNote(Note note, uint modifiers)
+    {
+        if ((modifiers & BChartConsts.DrumNotes.NOTE_MOD_ACCENT) != 0)
+        {
+            note.flags &= Note.Flags.ProDrums_Accent;
+        }
+        if ((modifiers & BChartConsts.DrumNotes.NOTE_MOD_GHOST) != 0)
+        {
+            note.flags &= Note.Flags.ProDrums_Ghost;
+        }
+        if ((modifiers & BChartConsts.DrumNotes.NOTE_MOD_CYMBAL) != 0)
+        {
+            note.flags &= Note.Flags.ProDrums_Cymbal;
+        }
+        if ((modifiers & BChartConsts.DrumNotes.NOTE_MOD_KICK_2) != 0)
+        {
+            note.flags &= Note.Flags.DoubleKick;
+        }
+    }
+
+    public static void ApplyBChartModToNote(Instrument instrument, Note note, uint modifierData)
+    {
+        switch (instrument)
+        {
+            case Instrument.Guitar:
+            case Instrument.GuitarCoop:
+            case Instrument.Bass:
+            case Instrument.Rhythm:
+            case Instrument.Keys:
+                ModToGuitarNote(note, modifierData);
+                break;
+            case Instrument.Drums:
+                ModToDrumNote(note, modifierData);
+                break;
+            case Instrument.GHLiveGuitar:
+            case Instrument.GHLiveBass:
+                ModToSixFretNote(note, modifierData);
+                break;
+            default:
+                ModToGuitarNote(note, modifierData);
+                break;
+        };
+    }
+
 }

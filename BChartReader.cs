@@ -17,51 +17,31 @@ public static class BChartReader
         return Encoding.UTF8.GetString(data);
     }
 
-    public static uint ReadPhraseLength(Span<byte> data)
+    public static (byte type, uint length) ReadPhrase(Span<byte> data)
     {
-        return data.ReadUInt32LE(0);
+        int pos = 0;
+        byte type = data.ReadByte(ref pos);
+        uint length = data.ReadUInt32LE(ref pos);
+        return (type, length);
     }
 
     public static Note ReadNoteData(Span<byte> data, Instrument inst, uint tick)
     {
+        byte baseEventLength = 5;
         int pos = 0;
+        uint modifiers = 0;
+        byte supplementalDataLength = 0;
         byte noteValue = data.ReadByte(ref pos);
         uint tickLength = data.ReadUInt32LE(ref pos);
-        byte modifierCount = data.ReadByte(ref pos);
 
-        if (modifierCount > pos + data.Length)
+        if (data.Length > baseEventLength)
         {
-            modifierCount = (byte)(data.Length - pos);
+            supplementalDataLength = data.ReadByte(ref pos);
+            modifiers = data.ReadUInt32LE(ref pos);
         }
 
         Note note = new Note(tick, BChartUtils.BChartToMoonNote(inst, noteValue), tickLength);
-
-        for (int i = 0; i < modifierCount; ++i)
-        {
-            byte modifier = data.ReadByte(ref pos);
-
-            switch (modifier)
-            {
-                case BChartConsts.MODIFIER_FORCED:
-                    note.forced = true;
-                    break;
-                case BChartConsts.MODIFIER_TAP:
-                    note.flags = Note.Flags.Tap;
-                    break;
-                case BChartConsts.MODIFIER_DRUMS_ACCENT:
-                    note.flags |= Note.Flags.ProDrums_Accent;
-                    break;
-                case BChartConsts.MODIFIER_DRUMS_GHOST:
-                    note.flags |= Note.Flags.ProDrums_Ghost;
-                    break;
-                case BChartConsts.MODIFIER_DRUMS_KICK_2:
-                    note.flags |= Note.Flags.DoubleKick;
-                    break;
-                case BChartConsts.MODIFIER_DRUMS_CYMBAL:
-                    note.flags |= Note.Flags.ProDrums_Cymbal;
-                    break;
-            }
-        }
+        BChartUtils.ApplyBChartModToNote(inst, note, modifiers);
         return note;
     }
 
@@ -187,22 +167,18 @@ public static class BChartReader
                     break;
                 case BChartConsts.EVENT_PHRASE:
                     {
-                        var type = dataSpan.ReadByte(0);
+                        (byte phraseType, uint length) = ReadPhrase(dataSpan);
 
-                        if (type == BChartConsts.PHRASE_STARPOWER)
+                        if (phraseType == BChartConsts.PHRASE_STARPOWER)
                         {
-
-                            uint length = ReadPhraseLength(dataSpan);
                             chart.Add(new Starpower(tickPos, length), false);
                         }
-                        else if (type == BChartConsts.PHRASE_SOLO)
+                        else if (phraseType == BChartConsts.PHRASE_SOLO)
                         {
-                            uint length = ReadPhraseLength(dataSpan);
                             var start = new ChartEvent(tickPos, MidIOHelper.SoloEventText);
                             var end = new ChartEvent(tickPos + length, MidIOHelper.SoloEndEventText);
                             soloEndEvents.Add(end);
                             chart.Add(start, false);
-                            // chart.Add(end, false);
                         }
                         break;
                     }
