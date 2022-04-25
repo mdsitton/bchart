@@ -80,12 +80,23 @@ Instrument Note IDs:
         W3: 0x06
 
 Modifiers:
-    FORCED: 0x01
-    TAP: 0x02
-    DRUMS_ACCENT: 0x03
-    DRUMS_GHOST: 0x04
-    DRUMS_CYMBAL: 0x05
-    DRUMS_KICK_2: 0x06
+    Guitar:
+        NOTE_MOD_FORCED: 1
+        NOTE_MOD_FORCE_HOPO: 2
+        NOTE_MOD_FORCE_STRUM: 4
+        NOTE_MOD_TAP: 8
+
+    SixFretGuitar:
+        NOTE_MOD_TOGGLE_FORCED: 1
+        NOTE_MOD_FORCE_HOPO: 2
+        NOTE_MOD_FORCE_STRUM: 4
+        NOTE_MOD_TAP: 8
+
+    Drum:
+        NOTE_MOD_ACCENT: 1
+        NOTE_MOD_GHOST: 2
+        NOTE_MOD_CYMBAL: 4
+        NOTE_MOD_KICK_2: 8
 
 Difficulties:
     EASY: 0x00
