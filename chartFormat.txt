@@ -131,4 +131,3 @@ Instruments:
 Other considerations:
     Animation data, venue, characters, camera
     Modchart events
-    Instrument shared events track (could be useful for various text events, solos sp etc)
