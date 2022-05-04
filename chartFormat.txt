@@ -14,7 +14,7 @@ bchart format:
             [Phrase 0x5]
                 [0x4] [uint8 length 2] [byte phraseType] [uint32 tickLength]
             [Note 0x06]
-                [0x5] [uint8 10] [byte noteNumber] [uint32 tickLength] [byte extraDataLength (4)] [uint32 modifiersBitMask]
+                [0x5] [uint8 9] [byte noteNumber] [uint32 tickLength] [uint32 modifiersBitMask]
             [Note 0x06]
                 [0x5] [uint8 5] [byte noteNumber] [uint32 tickLength] // No modifiers note event
     header:
@@ -45,13 +45,18 @@ bchart format:
         byte diffCount
         InstrumentDiffEvents
 
-    InstrumentDiffEvents:
-        uint32/byte[4] - DIFF 0x46464944 / 0x44 0x49 0x46 0x46
-        int32 - byteLength
-        int32 - eventCount
-        difficultyID
-        [uint32 tickPos] [uint32 eventByteLength] [event data]
+        InstrumentDiffEvents: - Required to come after an instrument chunk
+            uint32/byte[4] - DIFF 0x46464944 / 0x44 0x49 0x46 0x46
+            int32 - byteLength
+            int32 - eventCount
+            difficultyID
+            [uint32 tickPos] [uint32 eventByteLength] [event data]
 
+        AnimationEvents: Not yet fully defined but reserved for future use! - Required to come after an instrument chunk
+            uint32/byte[4] - ANIM 
+            int32 - byteLength
+            int32 - eventCount
+            [uint32 tickPos] [uint32 eventByteLength] [event data]
 
 Instrument Note IDs:
     drums:
@@ -131,3 +136,5 @@ Instruments:
 Other considerations:
     Animation data, venue, characters, camera
     Modchart events
+
+    TODO - Add major and minor version number minor version number is non-breaking changes, major is breaking changes

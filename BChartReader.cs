@@ -30,13 +30,11 @@ public static class BChartReader
         byte baseEventLength = 5;
         int pos = 0;
         uint modifiers = 0;
-        byte supplementalDataLength = 0;
         byte noteValue = data.ReadByte(ref pos);
         uint tickLength = data.ReadUInt32LE(ref pos);
 
         if (data.Length > baseEventLength)
         {
-            supplementalDataLength = data.ReadByte(ref pos);
             modifiers = data.ReadUInt32LE(ref pos);
         }
 

@@ -125,8 +125,6 @@ public static class BChartWriter
 
         if (modifiers > 0)
         {
-            // Note supplemental data section byte length
-            stream.WriteByte((byte)supplementalDataLength);
             stream.WriteUInt32LE(modifiers);
         }
         return true;
