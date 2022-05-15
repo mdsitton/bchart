@@ -65,10 +65,10 @@ public static class BChartReader
         switch (firstByte)
         {
             case 254:
-                outData = (uint)data.ReadUInt16LE(ref pos);
+                outData = data.ReadUInt16LE(ref pos);
                 break;
             case 255:
-                outData = (uint)data.ReadUInt32LE(ref pos);
+                outData = data.ReadUInt32LE(ref pos);
                 break;
             default:
                 outData = firstByte;
@@ -104,7 +104,6 @@ public static class BChartReader
         uint tickPos = 0;
         for (int i = 0; i < eventCount; ++i)
         {
-
             byte eventType = ReadEventBytes(data, ref pos, out Span<byte> dataSpan, ref tickPos);
 
             switch (eventType)

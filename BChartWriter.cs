@@ -98,7 +98,6 @@ public static class BChartWriter
     private static uint previousTickPos = 0;
     public static void WriteTicks(Stream stream, uint tickPos)
     {
-
         if (tickPos < previousTickPos)
         {
             previousTickPos = 0;
@@ -140,7 +139,6 @@ public static class BChartWriter
 
         if (modifiers > 0)
         {
-            byteLength++;
             byteLength += (byte)supplementalDataLength;
         }
 
