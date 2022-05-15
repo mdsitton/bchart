@@ -30,13 +30,13 @@ bchart format:
             [TextEvent 0x3]
                 [0x03] [uint8 length len] [utf8 characters]
             [Section 0x4]
-                [0x03] [uint8 length len] [utf8 characters]
+                [0x04] [uint8 length len] [utf8 characters]
             [Phrase 0x5]
-                [0x4] [uint8 length 2] [byte phraseType] [uint32 tickLength]
+                [0x5] [uint8 length 2] [byte phraseType] [uint32 tickLength]
             [Note 0x06]
-                [0x5] [uint8 9] [byte noteNumber] [uint32 tickLength] [uint32 modifiersBitMask]
+                [0x6] [uint8 9] [byte noteNumber] [uint32 tickLength] [uint32 modifiersBitMask]
             [Note 0x06]
-                [0x5] [uint8 5] [byte noteNumber] [uint32 tickLength] // No modifiers note event
+                [0x6] [uint8 5] [byte noteNumber] [uint32 tickLength] // No modifiers note event
     header:
         uint32/byte[4] - BCHF 0x46484342 / 0x42 0x43 0x48 0x46
         int32 - byteLength
