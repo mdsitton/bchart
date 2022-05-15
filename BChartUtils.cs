@@ -56,8 +56,8 @@ public static class BChartUtils
         int estCharCount = Encoding.UTF8.GetByteCount(chars);
         byte[] bytes = ArrayPool<byte>.Shared.Rent(estCharCount);
         Span<byte> outSpan = bytes;
-        Encoding.UTF8.GetBytes(chars, outSpan);
-        spanOut = outSpan;
+        var count = Encoding.UTF8.GetBytes(chars, outSpan);
+        spanOut = outSpan.Slice(0, count);
         return bytes;
     }
 
