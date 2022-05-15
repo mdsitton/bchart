@@ -1,7 +1,27 @@
 bchart format:
 
+        deltaTickEncoding:
+            if tickDelta > 65535 0xFFFF uint16 max
+                write byte - 255
+                write uint32 - deltaTick value
+            else if tickDelta > 253:
+                write byte - 254
+                write uint16 - deltaTick value
+            else
+                byte - deltaTick value
+        
+        deltaTickEncoding decoding:
+            byte firstByte = data.ReadByte(ref pos);
+            switch (firstByte)
+                case 254:
+                    return data.ReadUInt16LE(ref pos);
+                case 255:
+                    return data.ReadUInt32LE(ref pos);
+                default:
+                    return firstByte;
+            
         event format:
-        [uint32 tickPos] [uint8 eventType] [uint8 eventByteLength] [eventData]
+            [deltaTickEncoding tickPos] [uint8 eventType] [uint8 eventByteLength] [eventData]
         event types:
             [Tempo 0x01]
                 [0x01] [uint8 length 4] [uint32 tempo]

@@ -24,7 +24,7 @@ public static class BChartWriter
         {
             outSpan = outSpan.Slice(0, 255);
         }
-        stream.WriteUInt32LE(ev.tick);
+        WriteTicks(stream, ev.tick);
         stream.WriteByte(BChartConsts.EVENT_TEXT);
         stream.WriteByte((byte)outSpan.Length);
         stream.Write(outSpan);
@@ -41,7 +41,7 @@ public static class BChartWriter
         {
             outSpan = outSpan.Slice(0, 255);
         }
-        stream.WriteUInt32LE(ev.tick);
+        WriteTicks(stream, ev.tick);
         stream.WriteByte(BChartConsts.EVENT_TEXT);
         stream.WriteByte((byte)outSpan.Length);
         stream.Write(outSpan);
@@ -58,7 +58,7 @@ public static class BChartWriter
         {
             outSpan = outSpan.Slice(0, 255);
         }
-        stream.WriteUInt32LE(section.tick);
+        WriteTicks(stream, section.tick);
         stream.WriteByte(BChartConsts.EVENT_SECTION);
         stream.WriteByte((byte)outSpan.Length);
         stream.Write(outSpan);
@@ -68,7 +68,7 @@ public static class BChartWriter
 
     public static void WritePhrase(Stream stream, byte phraseType, uint tick, uint tickLength)
     {
-        stream.WriteUInt32LE(tick);
+        WriteTicks(stream, tick);
         stream.WriteByte(BChartConsts.EVENT_PHRASE);
         stream.WriteByte(5);
         stream.WriteByte(phraseType);
@@ -77,7 +77,7 @@ public static class BChartWriter
 
     public static void WriteTimeSignature(Stream stream, TimeSignature ts)
     {
-        stream.WriteUInt32LE(ts.tick);
+        WriteTicks(stream, ts.tick);
         stream.WriteByte(BChartConsts.EVENT_TIME_SIG);
         stream.WriteByte(2);
         stream.WriteByte((byte)ts.numerator);
@@ -88,10 +88,37 @@ public static class BChartWriter
     public static void WriteTempo(Stream stream, BPM bpm)
     {
         uint microSecondsPerQuarter = (uint)(microsecondsPerMinute * 1000 / bpm.value);
-        stream.WriteUInt32LE(bpm.tick);
+        WriteTicks(stream, bpm.tick);
         stream.WriteByte(BChartConsts.EVENT_TEMPO);
         stream.WriteByte(4);
         stream.WriteUInt32LE(microSecondsPerQuarter);
+    }
+
+
+    private static uint previousTickPos = 0;
+    public static void WriteTicks(Stream stream, uint tickPos)
+    {
+
+        if (tickPos < previousTickPos)
+        {
+            previousTickPos = 0;
+        }
+        uint deltaTicks = tickPos - previousTickPos;
+        if (deltaTicks > ushort.MaxValue)
+        {
+            stream.WriteByte(255);
+            stream.WriteUInt32LE(deltaTicks);
+        }
+        else if (deltaTicks > 253)
+        {
+            stream.WriteByte(254);
+            stream.WriteUInt16LE((ushort)deltaTicks);
+        }
+        else
+        {
+            stream.WriteByte((byte)deltaTicks);
+        }
+        previousTickPos = tickPos;
     }
 
     public static bool WriteNote(Stream stream, Note note, Instrument inst)
@@ -117,7 +144,7 @@ public static class BChartWriter
             byteLength += (byte)supplementalDataLength;
         }
 
-        stream.WriteUInt32LE(note.tick);
+        WriteTicks(stream, note.tick);
         stream.WriteByte(BChartConsts.EVENT_NOTE);
         stream.WriteByte(byteLength);
         stream.WriteByte(noteOut);
