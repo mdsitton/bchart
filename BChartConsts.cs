@@ -34,7 +34,7 @@ public static class BChartConsts
         public const byte NOTE_BLUE = 0x04;
         public const byte NOTE_ORANGE = 0x05;
 
-        public const uint NOTE_MOD_FORCED = 1;
+        public const uint NOTE_MOD_TOGGLE_FORCED = 1;
         public const uint NOTE_MOD_FORCE_HOPO = 2;
         public const uint NOTE_MOD_FORCE_STRUM = 4;
         public const uint NOTE_MOD_TAP = 8;

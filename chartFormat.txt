@@ -106,7 +106,7 @@ Instrument Note IDs:
 
 Modifiers:
     Guitar:
-        NOTE_MOD_FORCED: 1
+        NOTE_MOD_TOGGLE_FORCED: 1
         NOTE_MOD_FORCE_HOPO: 2
         NOTE_MOD_FORCE_STRUM: 4
         NOTE_MOD_TAP: 8

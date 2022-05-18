@@ -263,7 +263,7 @@ public static class BChartWriter
         int savedEvents = 0;
         void WriteData(Stream stre)
         {
-            stre.WriteByte((byte)diff);
+            stre.WriteByte(BChartUtils.MoonDiffToBChart(diff));
             int i = 0;
             foreach (var ev in chart.chartObjects)
             {

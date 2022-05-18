@@ -68,6 +68,8 @@ namespace MoonscraperChartEditor.Song
             // Guitar
             Forced = 1 << 0,
             Tap = 1 << 1,
+            ForceHopo = 1 << 2,
+            ForceStrum = 1 << 3,
 
             // RB Pro Drums
             ProDrums_Cymbal = 1 << 6,
@@ -196,7 +198,7 @@ namespace MoonscraperChartEditor.Song
 #if APPLICATION_MOONSCRAPER     // Moonscraper doesn't use note.chart.gameMode directly because notes might not have charts associated with them, esp when copy-pasting and storing undo-redo
                     return ChartEditor.Instance.currentChart.gameMode;
 #else
-                return Chart.GameMode.Unrecognised;
+                    return Chart.GameMode.Unrecognised;
 #endif
                 }
             }
@@ -214,6 +216,36 @@ namespace MoonscraperChartEditor.Song
                     flags = flags | Flags.Forced;
                 else
                     flags = flags & ~Flags.Forced;
+            }
+        }
+
+        public bool forcedHopo
+        {
+            get
+            {
+                return (flags & Flags.ForceHopo) == Flags.ForceHopo;
+            }
+            set
+            {
+                if (value)
+                    flags = flags | Flags.ForceHopo;
+                else
+                    flags = flags & ~Flags.ForceHopo;
+            }
+        }
+
+        public bool forcedStrum
+        {
+            get
+            {
+                return (flags & Flags.ForceStrum) == Flags.ForceStrum;
+            }
+            set
+            {
+                if (value)
+                    flags = flags | Flags.ForceStrum;
+                else
+                    flags = flags & ~Flags.ForceStrum;
             }
         }
 
@@ -295,7 +327,7 @@ namespace MoonscraperChartEditor.Song
         {
             get
             {
-                return ((previous != null && previous.tick == tick) || (next != null && next.tick == tick));
+                return (previous != null && previous.tick == tick) || (next != null && next.tick == tick);
             }
         }
 
@@ -333,13 +365,20 @@ namespace MoonscraperChartEditor.Song
         {
             get
             {
-                bool HOPO = isNaturalHopo;
-
-                // Check if forced
-                if (forced)
-                    HOPO = !HOPO;
-
-                return HOPO;
+                if (forcedHopo)
+                {
+                    return true;
+                }
+                else if (forcedStrum)
+                {
+                    return false;
+                }
+                else
+                {
+                    // apply hopo forcing
+                    // this flips isNaturalHopo based on the force state
+                    return isNaturalHopo != forced;
+                }
             }
         }
 

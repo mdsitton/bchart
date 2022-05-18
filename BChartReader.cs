@@ -153,7 +153,7 @@ public static class BChartReader
     {
         int pos = 0;
         int eventCount = data.ReadInt32LE(ref pos);
-        Difficulty diff = (Difficulty)data.ReadByte(ref pos);
+        Difficulty diff = BChartUtils.BChartToMoonDiff(data.ReadByte(ref pos));
         List<ChartEvent> soloEndEvents = new List<ChartEvent>();
         Console.WriteLine($"{inst} {diff}");
         var chart = song.GetChart(inst, diff);
