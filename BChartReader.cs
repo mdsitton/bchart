@@ -212,7 +212,10 @@ public static class BChartReader
     public static (Instrument inst, byte count) ReadInstrument(Span<byte> data)
     {
         int pos = 0;
-        return ((Instrument)data.ReadUInt32LE(ref pos), data.ReadByte(ref pos));
+        Instrument inst = BChartUtils.BChartToMoonInstrument(data.ReadByte(ref pos));
+        byte count = data.ReadByte(ref pos);
+
+        return (inst, count);
     }
 
     public static Song ReadBChart(string path)

@@ -71,16 +71,16 @@ public static class BChartConsts
         public const uint NOTE_MOD_KICK_2 = 8;
     }
 
-    public const uint INSTRUMENT_GUITAR = 0;
-    public const uint INSTRUMENT_GUITAR_SIX = 1;
-    public const uint INSTRUMENT_BASS = 2;
-    public const uint INSTRUMENT_BASS_SIX = 3;
-    public const uint INSTRUMENT_RHYTHM = 4;
-    public const uint INSTRUMENT_COOP = 5;
-    public const uint INSTRUMENT_KEYS = 6;
-    public const uint INSTRUMENT_DRUMS = 7;
-    public const uint INSTRUMENT_VOCALS = 8;
-    public const uint INSTRUMENT_UKN = 0xFFFF;
+    public const byte INSTRUMENT_GUITAR = 0;
+    public const byte INSTRUMENT_GUITAR_SIX = 1;
+    public const byte INSTRUMENT_BASS = 2;
+    public const byte INSTRUMENT_BASS_SIX = 3;
+    public const byte INSTRUMENT_RHYTHM = 4;
+    public const byte INSTRUMENT_COOP = 5;
+    public const byte INSTRUMENT_KEYS = 6;
+    public const byte INSTRUMENT_DRUMS = 7;
+    public const byte INSTRUMENT_VOCALS = 8;
+    public const byte INSTRUMENT_UKN = 0xFF;
 
     public static uint HeaderChunkName = BChartUtils.GetChunkNameToInt("BCHF");
     public static uint TempoChunkName = BChartUtils.GetChunkNameToInt("SYNC");

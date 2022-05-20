@@ -247,7 +247,7 @@ public static class BChartWriter
     {
         void WriteData(Stream stre)
         {
-            stre.WriteUInt32LE(BChartUtils.MoonInstrumentToBChart(inst));
+            stre.WriteByte(BChartUtils.MoonInstrumentToBChart(inst));
             stre.WriteByte((byte)diffs.Count);
             // TODO per instrument events track?
         }

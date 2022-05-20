@@ -61,16 +61,16 @@ bchart format:
     Instrument:
         uint32/byte[4] - INST 0x54534E49 / 0x49 0x4E 0x53 0x54
         int32 - byteLength
-        uint32 instrumentID
-        byte diffCount
+        byte - instrumentID
+        byte - diffCount
         InstrumentDiffEvents
 
         InstrumentDiffEvents: - Required to come after an instrument chunk
             uint32/byte[4] - DIFF 0x46464944 / 0x44 0x49 0x46 0x46
             int32 - byteLength
+            byte - difficultyID
             int32 - eventCount
             [deltaTickEncoding tickPos] [uint32 eventByteLength] [event data]
-            [uint32 tickPos] [uint32 eventByteLength] [event data]
 
         AnimationEvents: Not yet fully defined but reserved for future use! - Required to come after an instrument chunk
             uint32/byte[4] - ANIM 

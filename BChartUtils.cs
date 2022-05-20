@@ -100,7 +100,7 @@ public static class BChartUtils
     /// </summary>
     /// <param name="instrument">Moonscraper instrument enum</param>
     /// <returns>BChart output instrument id</returns>
-    public static uint MoonInstrumentToBChart(Instrument instrument)
+    public static byte MoonInstrumentToBChart(Instrument instrument)
     {
         return instrument switch
         {
@@ -113,6 +113,27 @@ public static class BChartUtils
             Instrument.GHLiveGuitar => BChartConsts.INSTRUMENT_GUITAR_SIX,
             Instrument.GHLiveBass => BChartConsts.INSTRUMENT_BASS_SIX,
             _ => BChartConsts.INSTRUMENT_UKN,
+        };
+    }
+
+    /// <summary>
+    /// Convert bchart instrument track id to the moonscraper instrument enum
+    /// </summary>
+    /// <param name="instrument">BChart instrument id</param>
+    /// <returns>Moonscraper instrument enum</returns>
+    public static Instrument BChartToMoonInstrument(byte instrument)
+    {
+        return instrument switch
+        {
+            BChartConsts.INSTRUMENT_GUITAR => Instrument.Guitar,
+            BChartConsts.INSTRUMENT_COOP => Instrument.GuitarCoop,
+            BChartConsts.INSTRUMENT_BASS => Instrument.Bass,
+            BChartConsts.INSTRUMENT_RHYTHM => Instrument.Rhythm,
+            BChartConsts.INSTRUMENT_KEYS => Instrument.Keys,
+            BChartConsts.INSTRUMENT_DRUMS => Instrument.Drums,
+            BChartConsts.INSTRUMENT_GUITAR_SIX => Instrument.GHLiveGuitar,
+            BChartConsts.INSTRUMENT_BASS_SIX => Instrument.GHLiveBass,
+            _ => Instrument.Unrecognised,
         };
     }
 
