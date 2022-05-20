@@ -263,7 +263,6 @@ public static class BChartWriter
         int savedEvents = 0;
         void WriteData(Stream stre)
         {
-            stre.WriteByte(BChartUtils.MoonDiffToBChart(diff));
             int i = 0;
             foreach (var ev in chart.chartObjects)
             {
@@ -324,6 +323,7 @@ public static class BChartWriter
         void PreDataWrite(Stream stre)
         {
             // write this to the outstream directly before the data gets written
+            stre.WriteByte(BChartUtils.MoonDiffToBChart(diff));
             stre.WriteInt32LE(savedEvents);
         }
         WriteChunk(stream, BChartConsts.DifficultyChunkName, WriteData, PreDataWrite); // DIFF
