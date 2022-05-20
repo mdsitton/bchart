@@ -69,14 +69,14 @@ bchart format:
             uint32/byte[4] - DIFF 0x46464944 / 0x44 0x49 0x46 0x46
             int32 - byteLength
             int32 - eventCount
-            difficultyID
+            [deltaTickEncoding tickPos] [uint32 eventByteLength] [event data]
             [uint32 tickPos] [uint32 eventByteLength] [event data]
 
         AnimationEvents: Not yet fully defined but reserved for future use! - Required to come after an instrument chunk
             uint32/byte[4] - ANIM 
             int32 - byteLength
             int32 - eventCount
-            [uint32 tickPos] [uint32 eventByteLength] [event data]
+            [deltaTickEncoding tickPos] [uint32 eventByteLength] [event data]
 
 Instrument Note IDs:
     drums:
